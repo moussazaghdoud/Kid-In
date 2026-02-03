@@ -1987,6 +1987,119 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
     text-align: center;
 }
 
+/* ---------- Papa Mascot ---------- */
+.papa-photo-ring {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 5px solid var(--color-yellow);
+    overflow: hidden;
+    display: inline-block;
+    box-shadow: 0 0 25px rgba(255, 230, 109, 0.5), var(--shadow-lg);
+    position: relative;
+}
+
+.papa-photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.papa-mascot-welcome {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    animation: papaEntrance 1s ease-out;
+}
+
+.papa-mascot-welcome .papa-photo-ring {
+    animation: papaWobble 3s ease-in-out infinite;
+}
+
+.papa-speech-bubble {
+    background: white;
+    color: var(--color-primary);
+    font-family: var(--font-title);
+    font-size: 1.1rem;
+    padding: 10px 22px;
+    border-radius: 20px;
+    position: relative;
+    box-shadow: var(--shadow-sm);
+    animation: bubbleBounce 2s ease-in-out infinite;
+}
+
+.papa-speech-bubble::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-bottom: 10px solid white;
+}
+
+@keyframes papaWobble {
+    0%, 100% { transform: rotate(-5deg) scale(1); }
+    25% { transform: rotate(5deg) scale(1.05); }
+    50% { transform: rotate(-3deg) scale(1); }
+    75% { transform: rotate(4deg) scale(1.03); }
+}
+
+@keyframes papaEntrance {
+    0% { opacity: 0; transform: scale(0.3) rotate(-20deg); }
+    60% { transform: scale(1.1) rotate(5deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+@keyframes bubbleBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+.papa-celebration {
+    margin-bottom: 10px;
+}
+
+.papa-celebration .papa-photo-ring {
+    width: 90px;
+    height: 90px;
+    border-color: var(--color-green);
+    box-shadow: 0 0 30px rgba(81, 207, 102, 0.5), var(--shadow-lg);
+}
+
+.papa-spin {
+    animation: papaCelebrate 1.5s ease-in-out infinite;
+}
+
+@keyframes papaCelebrate {
+    0% { transform: scale(1) rotate(0deg); }
+    25% { transform: scale(1.15) rotate(10deg); }
+    50% { transform: scale(1) rotate(0deg); }
+    75% { transform: scale(1.15) rotate(-10deg); }
+    100% { transform: scale(1) rotate(0deg); }
+}
+
+@media (max-width: 600px) {
+    .papa-photo-ring {
+        width: 90px;
+        height: 90px;
+    }
+
+    .papa-celebration .papa-photo-ring {
+        width: 70px;
+        height: 70px;
+    }
+
+    .papa-speech-bubble {
+        font-size: 0.95rem;
+        padding: 8px 16px;
+    }
+}
+
 .mb-10 { margin-bottom: 10px; }
 .mb-20 { margin-bottom: 20px; }
 .mb-30 { margin-bottom: 30px; }
