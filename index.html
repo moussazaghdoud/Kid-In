@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kid-in | Jeux Éducatifs pour Enfants</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Formes flottantes en arrière-plan -->
+    <div class="bg-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+        <div class="shape shape-4"></div>
+        <div class="shape shape-5"></div>
+        <div class="shape shape-6"></div>
+        <div class="shape shape-7"></div>
+        <div class="shape shape-8"></div>
+    </div>
+
+    <!-- ==================== ÉCRAN D'ACCUEIL ==================== -->
+    <div id="welcome-screen" class="screen active">
+        <div class="welcome-content">
+            <div class="logo-container">
+                <h1 class="logo">
+                    <span class="logo-k">K</span><span class="logo-i">i</span><span class="logo-d">d</span><span class="logo-dash">-</span><span class="logo-i2">i</span><span class="logo-n">n</span>
+                </h1>
+                <div class="logo-stars">
+                    <span class="star-float">&#9733;</span>
+                    <span class="star-float">&#9733;</span>
+                    <span class="star-float">&#9733;</span>
+                </div>
+            </div>
+            <p class="tagline">Apprends, Joue &amp; Grandis !</p>
+            <div class="welcome-emojis">
+                <span class="emoji-bounce">&#x1F680;</span>
+                <span class="emoji-bounce">&#x1F31F;</span>
+                <span class="emoji-bounce">&#x1F3A8;</span>
+                <span class="emoji-bounce">&#x1F9E9;</span>
+                <span class="emoji-bounce">&#x1F4DA;</span>
+            </div>
+            <button id="start-btn" class="btn-primary btn-xl pulse-btn">
+                C'est parti !
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================== ÉCRAN SÉLECTION D'ÂGE ==================== -->
+    <div id="age-screen" class="screen">
+        <div class="screen-content">
+            <button class="btn-back" id="back-to-welcome">&#8592; Retour</button>
+            <h2 class="screen-title">Quel &acirc;ge as-tu ?</h2>
+            <p class="screen-subtitle">Choisis ton &acirc;ge pour que les jeux s'adaptent &agrave; toi !</p>
+            <div class="age-grid">
+                <button class="age-btn" data-age="5">
+                    <span class="age-number">5</span>
+                    <span class="age-label">ans</span>
+                    <span class="age-emoji">&#x1F476;</span>
+                </button>
+                <button class="age-btn" data-age="6">
+                    <span class="age-number">6</span>
+                    <span class="age-label">ans</span>
+                    <span class="age-emoji">&#x1F9D2;</span>
+                </button>
+                <button class="age-btn" data-age="7">
+                    <span class="age-number">7</span>
+                    <span class="age-label">ans</span>
+                    <span class="age-emoji">&#x1F466;</span>
+                </button>
+                <button class="age-btn" data-age="8">
+                    <span class="age-number">8</span>
+                    <span class="age-label">ans</span>
+                    <span class="age-emoji">&#x1F467;</span>
+                </button>
+                <button class="age-btn" data-age="9">
+                    <span class="age-number">9</span>
+                    <span class="age-label">ans</span>
+                    <span class="age-emoji">&#x1F4AA;</span>
+                </button>
+                <button class="age-btn" data-age="10">
+                    <span class="age-number">10</span>
+                    <span class="age-label">ans</span>
+                    <span class="age-emoji">&#x1F929;</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ÉCRAN MENU DES JEUX ==================== -->
+    <div id="menu-screen" class="screen">
+        <div class="screen-content">
+            <header class="menu-header">
+                <div class="header-left">
+                    <button class="btn-back" id="change-age-btn">&#8592; Changer d'&acirc;ge</button>
+                </div>
+                <div class="header-center">
+                    <h2 class="screen-title">Choisis un jeu !</h2>
+                    <p class="age-display"><span id="selected-age-display">7</span> ans</p>
+                </div>
+                <div class="header-right">
+                    <div class="total-stars">
+                        <span class="star-icon">&#9733;</span>
+                        <span id="total-stars-count">0</span>
+                    </div>
+                </div>
+            </header>
+            <div class="games-grid">
+                <!-- Magicien des Maths -->
+                <div class="game-card" data-game="math">
+                    <div class="card-icon card-icon-math">&#x1F9EE;</div>
+                    <h3 class="card-title">Magicien des Maths</h3>
+                    <p class="card-desc">R&eacute;sous des probl&egrave;mes amusants !</p>
+                    <div class="card-stars" id="stars-math"></div>
+                    <div class="card-badge">Nombres</div>
+                </div>
+                <!-- Explorateur de Mots -->
+                <div class="game-card" data-game="words">
+                    <div class="card-icon card-icon-words">&#x1F4DD;</div>
+                    <h3 class="card-title">Explorateur de Mots</h3>
+                    <p class="card-desc">Joue avec les lettres et les mots !</p>
+                    <div class="card-stars" id="stars-words"></div>
+                    <div class="card-badge">Mots</div>
+                </div>
+                <!-- Jeu de Mémoire -->
+                <div class="game-card" data-game="memory">
+                    <div class="card-icon card-icon-memory">&#x1F0CF;</div>
+                    <h3 class="card-title">Jeu de M&eacute;moire</h3>
+                    <p class="card-desc">Trouve les paires identiques !</p>
+                    <div class="card-stars" id="stars-memory"></div>
+                    <div class="card-badge">M&eacute;moire</div>
+                </div>
+                <!-- Détective de Motifs -->
+                <div class="game-card" data-game="pattern">
+                    <div class="card-icon card-icon-pattern">&#x1F50D;</div>
+                    <h3 class="card-title">D&eacute;tective de Motifs</h3>
+                    <p class="card-desc">Trouve ce qui vient apr&egrave;s !</p>
+                    <div class="card-stars" id="stars-pattern"></div>
+                    <div class="card-badge">Logique</div>
+                </div>
+                <!-- Dessine & Colorie -->
+                <div class="game-card" data-game="draw">
+                    <div class="card-icon card-icon-draw">&#x1F3A8;</div>
+                    <h3 class="card-title">Dessine &amp; Colorie</h3>
+                    <p class="card-desc">Cr&eacute;e tes propres dessins !</p>
+                    <div class="card-stars" id="stars-draw"></div>
+                    <div class="card-badge">Cr&eacute;atif</div>
+                </div>
+                <!-- Quiz -->
+                <div class="game-card" data-game="quiz">
+                    <div class="card-icon card-icon-quiz">&#x2753;</div>
+                    <h3 class="card-title">Quiz</h3>
+                    <p class="card-desc">R&eacute;ponds &agrave; des questions amusantes !</p>
+                    <div class="card-stars" id="stars-quiz"></div>
+                    <div class="card-badge">Culture</div>
+                </div>
+                <!-- Trouve l'Intrus -->
+                <div class="game-card" data-game="intrus">
+                    <div class="card-icon card-icon-intrus">&#x1F50E;</div>
+                    <h3 class="card-title">Trouve l'Intrus</h3>
+                    <p class="card-desc">Quel &eacute;l&eacute;ment ne va pas avec les autres ?</p>
+                    <div class="card-stars" id="stars-intrus"></div>
+                    <div class="card-badge">Logique</div>
+                </div>
+                <!-- Vrai ou Faux -->
+                <div class="game-card" data-game="vf">
+                    <div class="card-icon card-icon-vf">&#x2705;</div>
+                    <h3 class="card-title">Vrai ou Faux</h3>
+                    <p class="card-desc">Est-ce vrai ou faux ? &Agrave; toi de juger !</p>
+                    <div class="card-stars" id="stars-vf"></div>
+                    <div class="card-badge">Savoir</div>
+                </div>
+                <!-- Suite de Couleurs -->
+                <div class="game-card" data-game="colorseq">
+                    <div class="card-icon card-icon-colorseq">&#x1F7E2;</div>
+                    <h3 class="card-title">Suite de Couleurs</h3>
+                    <p class="card-desc">M&eacute;morise et reproduis la s&eacute;quence !</p>
+                    <div class="card-stars" id="stars-colorseq"></div>
+                    <div class="card-badge">M&eacute;moire</div>
+                </div>
+                <!-- Compte les Objets -->
+                <div class="game-card" data-game="countobj">
+                    <div class="card-icon card-icon-countobj">&#x1F522;</div>
+                    <h3 class="card-title">Compte les Objets</h3>
+                    <p class="card-desc">Combien d'objets vois-tu ?</p>
+                    <div class="card-stars" id="stars-countobj"></div>
+                    <div class="card-badge">Nombres</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ÉCRAN DE JEU ==================== -->
+    <div id="game-screen" class="screen">
+        <header class="game-header">
+            <button class="btn-back" id="back-to-menu">&#8592; Menu</button>
+            <h2 id="game-title" class="game-title-text">Jeu</h2>
+            <div class="game-info">
+                <div class="game-score">
+                    <span class="star-icon">&#9733;</span>
+                    <span id="game-score-value">0</span>
+                </div>
+                <div class="game-progress">
+                    <span id="game-question-num">1</span>/<span id="game-question-total">10</span>
+                </div>
+            </div>
+        </header>
+        <div class="game-progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div id="game-container" class="game-container"></div>
+    </div>
+
+    <!-- ==================== POPUP INSTRUCTIONS ==================== -->
+    <div id="instruction-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content instruction-content">
+            <div id="instruction-icon" class="instruction-icon"></div>
+            <h2 id="instruction-title" class="instruction-title"></h2>
+            <p id="instruction-text" class="instruction-text"></p>
+            <div class="instruction-footer">
+                <label class="dont-show-label">
+                    <input type="checkbox" id="dont-show-check">
+                    <span class="checkmark"></span>
+                    Ne plus afficher
+                </label>
+                <div class="instruction-buttons">
+                    <button id="stop-voice-btn" class="btn-stop-voice">&#x1F507; Arr&ecirc;ter la voix</button>
+                    <button id="instruction-play-btn" class="btn-primary">Jouer !</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== POPUP RÉSULTAT ==================== -->
+    <div id="result-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content result-modal-content">
+            <div class="confetti-container" id="confetti-container"></div>
+            <div id="result-stars-display" class="result-stars"></div>
+            <h2 id="result-title" class="result-title">Bravo !</h2>
+            <p id="result-message" class="result-message"></p>
+            <div id="result-detail" class="result-detail"></div>
+            <div class="modal-buttons">
+                <button id="play-again-btn" class="btn-primary">&#x1F504; Rejouer</button>
+            </div>
+            <div class="switch-game-section">
+                <p class="switch-game-question">&#x1F3AE; Envie d'essayer un autre jeu ?</p>
+                <div class="switch-game-grid" id="switch-game-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
