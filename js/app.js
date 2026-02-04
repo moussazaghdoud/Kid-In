@@ -11,10 +11,16 @@ const App = {
     totalStars: 0,
     gameStars: {},
     dontShowInstructions: {},
+    playerId: null,
+    playerName: null,
+    playerAvatar: null,
+    isMultiplayer: false,
+    _mpScores: null,
 
     init() {
         this.loadProgress();
         this.bindEvents();
+        this.bindMultiplayerEvents();
         this.showScreen('welcome-screen');
     },
 
@@ -73,16 +79,16 @@ const App = {
     },
 
     bindEvents() {
-        // Accueil -> Âge
+        // Accueil -> Player Select
         document.getElementById('start-btn').addEventListener('click', () => {
             Sound.play('click');
-            this.showScreen('age-screen');
+            this.showScreen('player-select-screen');
         });
 
         // Retour à l'accueil
         document.getElementById('back-to-welcome').addEventListener('click', () => {
             Sound.play('click');
-            this.showScreen('welcome-screen');
+            this.showScreen('player-select-screen');
         });
 
         // Sélection de l'âge
@@ -107,7 +113,12 @@ const App = {
             card.addEventListener('click', () => {
                 Sound.play('click');
                 const game = card.dataset.game;
-                this.launchGame(game);
+                if (this.isMultiplayer && Multiplayer.isHost) {
+                    const totalQ = game === 'pattern' ? 8 : 10;
+                    Multiplayer.selectGame(game, this.age, totalQ);
+                } else {
+                    this.launchGame(game);
+                }
             });
         });
 
@@ -119,6 +130,13 @@ const App = {
                 this.currentGame.cleanup();
             }
             this.currentGame = null;
+            this.hideMultiplayerHeader();
+            if (this.isMultiplayer) {
+                Multiplayer.leaveRoom();
+                Multiplayer.disconnect();
+                VideoChat.stop();
+                this.isMultiplayer = false;
+            }
             this.showScreen('menu-screen');
         });
 
@@ -128,7 +146,12 @@ const App = {
             this.hideModal();
             if (this.currentGame) {
                 const gameName = this.currentGame.name;
-                this.launchGame(gameName);
+                if (this.isMultiplayer && Multiplayer.isHost) {
+                    const totalQ = gameName === 'pattern' ? 8 : 10;
+                    Multiplayer.selectGame(gameName, this.age, totalQ);
+                } else if (!this.isMultiplayer) {
+                    this.launchGame(gameName);
+                }
             }
         });
 
@@ -180,7 +203,7 @@ const App = {
         }
     },
 
-    startGameNow(gameName) {
+    startGameNow(gameName, seed) {
         this.showScreen('game-screen');
         const container = document.getElementById('game-container');
         container.innerHTML = '';
@@ -215,37 +238,50 @@ const App = {
             document.querySelector('.game-progress-bar').style.display = '';
         }
 
+        // Create seeded RNG if seed provided (multiplayer)
+        const rng = seed != null ? new SeededRandom(seed) : null;
+
         switch (gameName) {
             case 'math':
-                this.currentGame = new MathWizard(this.age, container);
+                this.currentGame = new MathWizard(this.age, container, rng);
                 break;
             case 'words':
-                this.currentGame = new WordExplorer(this.age, container);
+                this.currentGame = new WordExplorer(this.age, container, rng);
                 break;
             case 'memory':
-                this.currentGame = new MemoryMatch(this.age, container);
+                this.currentGame = new MemoryMatch(this.age, container, rng);
                 break;
             case 'pattern':
-                this.currentGame = new PatternDetective(this.age, container);
+                this.currentGame = new PatternDetective(this.age, container, rng);
                 break;
             case 'draw':
-                this.currentGame = new ColorDraw(this.age, container);
+                this.currentGame = new ColorDraw(this.age, container, rng);
                 break;
             case 'quiz':
-                this.currentGame = new QuizTime(this.age, container);
+                this.currentGame = new QuizTime(this.age, container, rng);
                 break;
             case 'intrus':
-                this.currentGame = new OddOneOut(this.age, container);
+                this.currentGame = new OddOneOut(this.age, container, rng);
                 break;
             case 'vf':
-                this.currentGame = new TrueOrFalse(this.age, container);
+                this.currentGame = new TrueOrFalse(this.age, container, rng);
                 break;
             case 'colorseq':
-                this.currentGame = new ColorSequence(this.age, container);
+                this.currentGame = new ColorSequence(this.age, container, rng);
                 break;
             case 'countobj':
-                this.currentGame = new CountObjects(this.age, container);
+                this.currentGame = new CountObjects(this.age, container, rng);
                 break;
+        }
+
+        // Apply multiplayer wrapper if in multiplayer mode
+        if (this.isMultiplayer && this.currentGame) {
+            MultiplayerGameWrapper.wrap(this.currentGame);
+        }
+
+        // Show multiplayer score header
+        if (this.isMultiplayer) {
+            this.showMultiplayerHeader();
         }
     },
 
@@ -264,6 +300,11 @@ const App = {
     ],
 
     showModal(title, message, detail, starsEarned) {
+        if (this.isMultiplayer) {
+            this.showMultiplayerResult(title, message, detail, starsEarned);
+            return;
+        }
+
         const modal = document.getElementById('result-modal');
         document.getElementById('result-title').textContent = title;
         document.getElementById('result-message').textContent = message;
@@ -353,6 +394,321 @@ const App = {
 
     updateGameScore(score) {
         document.getElementById('game-score-value').textContent = score;
+    },
+
+    // ==================== MULTIPLAYER METHODS ====================
+
+    bindMultiplayerEvents() {
+        // Player select screen
+        document.getElementById('back-to-welcome-from-player').addEventListener('click', () => {
+            Sound.play('click');
+            this.showScreen('welcome-screen');
+        });
+
+        document.querySelectorAll('.player-card').forEach(card => {
+            card.addEventListener('click', () => {
+                Sound.play('click');
+                document.querySelectorAll('.player-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                this.playerAvatar = card.dataset.player;
+                this.playerName = card.dataset.name;
+                document.getElementById('play-mode-buttons').style.display = 'flex';
+            });
+        });
+
+        // Play solo
+        document.getElementById('play-solo-btn').addEventListener('click', () => {
+            Sound.play('click');
+            this.isMultiplayer = false;
+            this.showScreen('age-screen');
+        });
+
+        // Play together
+        document.getElementById('play-together-btn').addEventListener('click', async () => {
+            Sound.play('click');
+            this.isMultiplayer = true;
+            this.showScreen('lobby-screen');
+            try {
+                await Multiplayer.connect();
+            } catch (e) {
+                document.getElementById('lobby-status').textContent = 'Erreur de connexion...';
+            }
+        });
+
+        // Lobby back
+        document.getElementById('back-to-player-select').addEventListener('click', () => {
+            Sound.play('click');
+            if (Multiplayer.roomCode) Multiplayer.leaveRoom();
+            Multiplayer.disconnect();
+            VideoChat.stop();
+            this.isMultiplayer = false;
+            document.getElementById('lobby-options').classList.remove('hidden');
+            document.getElementById('lobby-waiting').classList.add('hidden');
+            this.showScreen('player-select-screen');
+        });
+
+        // Create room
+        document.getElementById('create-room-btn').addEventListener('click', () => {
+            Sound.play('click');
+            if (!Multiplayer.connected) return;
+            Multiplayer.createRoom(this.playerName, this.playerAvatar);
+        });
+
+        // Join room
+        document.getElementById('join-room-btn').addEventListener('click', () => {
+            Sound.play('click');
+            const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+            if (code.length !== 6) return;
+            if (!Multiplayer.connected) return;
+            Multiplayer.joinRoom(code, this.playerName, this.playerAvatar);
+        });
+
+        // Lobby start game (host picks)
+        document.getElementById('lobby-start-btn').addEventListener('click', () => {
+            Sound.play('click');
+            // Go to age selection, then menu
+            this.showScreen('age-screen');
+        });
+
+        // Disconnect overlay
+        document.getElementById('disconnect-back-btn').addEventListener('click', () => {
+            Sound.play('click');
+            document.getElementById('disconnect-overlay').classList.add('hidden');
+            this.isMultiplayer = false;
+            this.hideMultiplayerHeader();
+            VideoChat.stop();
+            this.showScreen('menu-screen');
+        });
+
+        // Video chat controls
+        document.getElementById('vc-mute-btn').addEventListener('click', () => {
+            VideoChat.toggleMute();
+        });
+        document.getElementById('vc-camera-btn').addEventListener('click', () => {
+            VideoChat.toggleCamera();
+        });
+
+        // Setup multiplayer callbacks
+        Multiplayer.onRoomCreated = (roomCode) => {
+            document.getElementById('lobby-options').classList.add('hidden');
+            document.getElementById('lobby-waiting').classList.remove('hidden');
+            document.getElementById('room-code-display').textContent = roomCode;
+            document.getElementById('lobby-status').textContent = 'En attente d\'un joueur...';
+            document.getElementById('lobby-start-btn').classList.add('hidden');
+
+            // Start local video preview
+            this._startLobbyVideo();
+        };
+
+        Multiplayer.onRoomJoined = async (players) => {
+            document.getElementById('lobby-options').classList.add('hidden');
+            document.getElementById('lobby-waiting').classList.remove('hidden');
+            if (Multiplayer.roomCode) {
+                document.getElementById('room-code-display').textContent = Multiplayer.roomCode;
+            }
+
+            // Show players
+            const playersEl = document.getElementById('lobby-players');
+            playersEl.innerHTML = '';
+            players.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'lobby-player';
+                div.innerHTML = `
+                    <div class="lobby-player-avatar">
+                        <img src="images/${p.avatar}.jpg" alt="${p.name}">
+                    </div>
+                    <span class="lobby-player-name">${p.name}</span>
+                `;
+                playersEl.appendChild(div);
+            });
+
+            if (players.length >= 2) {
+                document.getElementById('lobby-status').textContent = 'Tout le monde est l\u00E0 !';
+
+                if (Multiplayer.isHost) {
+                    document.getElementById('lobby-start-btn').classList.remove('hidden');
+                } else {
+                    document.getElementById('lobby-status').textContent = 'L\'h\u00F4te va choisir le jeu...';
+                }
+
+                // Start video chat
+                await this._startLobbyVideo();
+                VideoChat.setupSignaling();
+                if (Multiplayer.isHost) {
+                    setTimeout(() => VideoChat.createOffer(), 1000);
+                }
+            }
+        };
+
+        Multiplayer.onRoomError = (message) => {
+            document.getElementById('lobby-status').textContent = message;
+            setTimeout(() => {
+                document.getElementById('lobby-status').textContent = '';
+            }, 3000);
+        };
+
+        Multiplayer.onPlayerLeft = (msg) => {
+            if (msg.disconnected || this.currentScreen === 'game-screen') {
+                document.getElementById('disconnect-overlay').classList.remove('hidden');
+            } else {
+                document.getElementById('lobby-status').textContent = 'L\'autre joueur est parti...';
+                document.getElementById('lobby-start-btn').classList.add('hidden');
+            }
+        };
+
+        Multiplayer.onGameStart = (msg) => {
+            this.age = msg.age;
+            document.getElementById('selected-age-display').textContent = this.age;
+            this.startGameNow(msg.game, msg.seed);
+        };
+    },
+
+    async _startLobbyVideo() {
+        const hasMedia = await VideoChat.startLocalMedia();
+        if (hasMedia) {
+            const lobbyVideo = document.getElementById('lobby-local-video');
+            if (lobbyVideo && VideoChat.localStream) {
+                lobbyVideo.srcObject = VideoChat.localStream;
+            }
+        }
+    },
+
+    showMultiplayerHeader() {
+        const header = document.getElementById('mp-score-header');
+        header.classList.remove('hidden');
+
+        const me = Multiplayer.players.find(p => p.id === Multiplayer.playerId);
+        const partner = Multiplayer.getPartner();
+
+        if (me) {
+            document.getElementById('mp-avatar-left').innerHTML = `<img src="images/${me.avatar}.jpg" alt="${me.name}">`;
+            document.getElementById('mp-name-left').textContent = me.name;
+            document.getElementById('mp-score-left').textContent = '0';
+        }
+        if (partner) {
+            document.getElementById('mp-avatar-right').innerHTML = `<img src="images/${partner.avatar}.jpg" alt="${partner.name}">`;
+            document.getElementById('mp-name-right').textContent = partner.name;
+            document.getElementById('mp-score-right').textContent = '0';
+        }
+    },
+
+    hideMultiplayerHeader() {
+        document.getElementById('mp-score-header').classList.add('hidden');
+    },
+
+    updateMultiplayerScores(scores) {
+        if (!scores) return;
+        const me = Multiplayer.playerId;
+        const partner = Multiplayer.getPartner();
+        const myScore = scores[me] || 0;
+        const partnerScore = partner ? (scores[partner.id] || 0) : 0;
+
+        document.getElementById('mp-score-left').textContent = myScore;
+        document.getElementById('mp-score-right').textContent = partnerScore;
+    },
+
+    showMultiplayerResult(title, message, detail, starsEarned) {
+        const modal = document.getElementById('result-modal');
+        document.getElementById('result-title').textContent = title;
+        document.getElementById('result-message').textContent = message;
+
+        const detailEl = document.getElementById('result-detail');
+        detailEl.innerHTML = '';
+
+        if (this._mpScores && Multiplayer.players.length >= 2) {
+            const me = Multiplayer.players.find(p => p.id === Multiplayer.playerId);
+            const partner = Multiplayer.getPartner();
+            const myScore = this._mpScores[Multiplayer.playerId] || 0;
+            const partnerScore = partner ? (this._mpScores[partner.id] || 0) : 0;
+
+            const scoresDiv = document.createElement('div');
+            scoresDiv.className = 'mp-result-scores';
+
+            const isWinner = myScore > partnerScore;
+            const isTie = myScore === partnerScore;
+            const partnerIsWinner = partnerScore > myScore;
+
+            scoresDiv.innerHTML = `
+                <div class="mp-result-player ${isWinner ? 'mp-winner' : ''}">
+                    ${isWinner ? '<span class="mp-result-crown">\u{1F451}</span>' : ''}
+                    <div class="mp-result-avatar"><img src="images/${me.avatar}.jpg" alt="${me.name}"></div>
+                    <span class="mp-result-name">${me.name}</span>
+                    <span class="mp-result-score">${myScore}</span>
+                </div>
+                <div class="mp-result-player ${partnerIsWinner ? 'mp-winner' : ''}">
+                    ${partnerIsWinner ? '<span class="mp-result-crown">\u{1F451}</span>' : ''}
+                    <div class="mp-result-avatar"><img src="images/${partner.avatar}.jpg" alt="${partner.name}"></div>
+                    <span class="mp-result-name">${partner.name}</span>
+                    <span class="mp-result-score">${partnerScore}</span>
+                </div>
+            `;
+            detailEl.appendChild(scoresDiv);
+
+            if (isTie) {
+                detailEl.insertAdjacentHTML('beforeend', '<p style="color:var(--color-text-light);margin-top:5px;">\u00C9galit\u00E9 !</p>');
+            }
+        } else {
+            detailEl.textContent = detail || '';
+        }
+
+        const starsDisplay = document.getElementById('result-stars-display');
+        starsDisplay.textContent = '';
+        for (let i = 0; i < 3; i++) {
+            const star = document.createElement('span');
+            star.textContent = i < starsEarned ? '\u2605' : '\u2606';
+            star.style.color = i < starsEarned ? '#FFE66D' : '#ccc';
+            star.style.fontSize = '3rem';
+            star.style.margin = '0 3px';
+            star.style.textShadow = i < starsEarned ? '0 0 10px rgba(255,230,109,0.5)' : 'none';
+            starsDisplay.appendChild(star);
+        }
+
+        // Game switch grid
+        const currentGameName = this.currentGame ? this.currentGame.name : null;
+        const grid = document.getElementById('switch-game-grid');
+        grid.innerHTML = '';
+
+        if (this.isMultiplayer && Multiplayer.isHost) {
+            this.allGames.forEach(game => {
+                const btn = document.createElement('button');
+                btn.className = 'switch-game-btn' + (game.id === currentGameName ? ' sg-current' : '');
+                btn.innerHTML = `<span class="sg-icon">${game.icon}</span><span class="sg-label">${game.label}</span>`;
+                btn.addEventListener('click', () => {
+                    Sound.play('click');
+                    this.hideModal();
+                    if (this.currentGame && this.currentGame.cleanup) {
+                        this.currentGame.cleanup();
+                    }
+                    this.currentGame = null;
+                    const totalQ = game.id === 'pattern' ? 8 : 10;
+                    Multiplayer.selectGame(game.id, this.age, totalQ);
+                });
+                grid.appendChild(btn);
+            });
+        } else if (!this.isMultiplayer) {
+            this.allGames.forEach(game => {
+                const btn = document.createElement('button');
+                btn.className = 'switch-game-btn' + (game.id === currentGameName ? ' sg-current' : '');
+                btn.innerHTML = `<span class="sg-icon">${game.icon}</span><span class="sg-label">${game.label}</span>`;
+                btn.addEventListener('click', () => {
+                    Sound.play('click');
+                    this.hideModal();
+                    if (this.currentGame && this.currentGame.cleanup) {
+                        this.currentGame.cleanup();
+                    }
+                    this.currentGame = null;
+                    this.launchGame(game.id);
+                });
+                grid.appendChild(btn);
+            });
+        }
+
+        modal.classList.remove('hidden');
+
+        if (starsEarned >= 2) this.spawnConfetti();
+        if (starsEarned === 3) Sound.play('excellent');
+        else if (starsEarned >= 1) Sound.play('good');
+        else Sound.play('tryAgain');
     }
 };
 
@@ -609,16 +965,29 @@ function generateWrongAnswers(correct, count, min, max) {
 
 // ==================== JEU : MAGICIEN DES MATHS ====================
 class MathWizard {
-    constructor(age, container) {
+    constructor(age, container, rng) {
         this.name = 'math';
         this.age = age;
         this.container = container;
+        this._rng = rng;
         this.score = 0;
         this.current = 0;
         this.total = 10;
         this.questions = [];
         this.generateQuestions();
         this.showQuestion();
+    }
+
+    _randInt(min, max) {
+        return this._rng ? this._rng.randInt(min, max) : randInt(min, max);
+    }
+
+    _shuffle(arr) {
+        return this._rng ? this._rng.shuffle(arr) : shuffle(arr);
+    }
+
+    _random() {
+        return this._rng ? this._rng.next() : Math.random();
     }
 
     generateQuestions() {
@@ -632,63 +1001,72 @@ class MathWizard {
         let a, b, op, answer, question;
 
         if (this.age <= 6) {
-            op = Math.random() > 0.3 ? '+' : '-';
+            op = this._random() > 0.3 ? '+' : '-';
             if (op === '+') {
-                a = randInt(1, 8);
-                b = randInt(1, 8);
+                a = this._randInt(1, 8);
+                b = this._randInt(1, 8);
                 answer = a + b;
             } else {
-                a = randInt(3, 10);
-                b = randInt(1, a - 1);
+                a = this._randInt(3, 10);
+                b = this._randInt(1, a - 1);
                 answer = a - b;
             }
             question = `${a} ${op} ${b} = ?`;
         } else if (this.age <= 8) {
             const ops = ['+', '-', '\u00D7'];
-            op = ops[randInt(0, 2)];
+            op = ops[this._randInt(0, 2)];
             if (op === '+') {
-                a = randInt(5, 30);
-                b = randInt(5, 30);
+                a = this._randInt(5, 30);
+                b = this._randInt(5, 30);
                 answer = a + b;
             } else if (op === '-') {
-                a = randInt(10, 50);
-                b = randInt(1, a);
+                a = this._randInt(10, 50);
+                b = this._randInt(1, a);
                 answer = a - b;
             } else {
-                a = randInt(2, 6);
-                b = randInt(2, 6);
+                a = this._randInt(2, 6);
+                b = this._randInt(2, 6);
                 answer = a * b;
             }
             question = `${a} ${op} ${b} = ?`;
         } else {
             const ops = ['+', '-', '\u00D7', '\u00F7'];
-            op = ops[randInt(0, 3)];
+            op = ops[this._randInt(0, 3)];
             if (op === '+') {
-                a = randInt(20, 100);
-                b = randInt(10, 80);
+                a = this._randInt(20, 100);
+                b = this._randInt(10, 80);
                 answer = a + b;
             } else if (op === '-') {
-                a = randInt(30, 150);
-                b = randInt(10, a);
+                a = this._randInt(30, 150);
+                b = this._randInt(10, a);
                 answer = a - b;
             } else if (op === '\u00D7') {
-                a = randInt(3, 12);
-                b = randInt(3, 12);
+                a = this._randInt(3, 12);
+                b = this._randInt(3, 12);
                 answer = a * b;
             } else {
-                b = randInt(2, 10);
-                answer = randInt(2, 12);
+                b = this._randInt(2, 10);
+                answer = this._randInt(2, 12);
                 a = b * answer;
             }
             question = `${a} ${op} ${b} = ?`;
         }
 
-        const wrongs = generateWrongAnswers(answer, 3,
+        const wrongs = this._generateWrongAnswers(answer, 3,
             Math.max(0, answer - (this.age <= 6 ? 5 : 15)),
             answer + (this.age <= 6 ? 5 : 15));
-        const options = shuffle([answer, ...wrongs]);
+        const options = this._shuffle([answer, ...wrongs]);
 
         return { question, answer, options };
+    }
+
+    _generateWrongAnswers(correct, count, min, max) {
+        const wrongs = new Set();
+        while (wrongs.size < count) {
+            let w = this._randInt(min, max);
+            if (w !== correct && !wrongs.has(w)) wrongs.add(w);
+        }
+        return [...wrongs];
     }
 
     showQuestion() {
@@ -762,10 +1140,11 @@ class MathWizard {
 
 // ==================== JEU : EXPLORATEUR DE MOTS ====================
 class WordExplorer {
-    constructor(age, container) {
+    constructor(age, container, rng) {
         this.name = 'words';
         this.age = age;
         this.container = container;
+        this._rng = rng;
         this.score = 0;
         this.current = 0;
         this.total = 10;
@@ -774,6 +1153,9 @@ class WordExplorer {
         this.generateQuestions();
         this.showQuestion();
     }
+
+    _randInt(min, max) { return this._rng ? this._rng.randInt(min, max) : randInt(min, max); }
+    _shuffle(arr) { return this._rng ? this._rng.shuffle(arr) : shuffle(arr); }
 
     getWordBank() {
         const simple = [
@@ -833,7 +1215,7 @@ class WordExplorer {
     }
 
     generateQuestions() {
-        const bank = shuffle(this.getWordBank());
+        const bank = this._shuffle(this.getWordBank());
         this.questions = [];
         for (let i = 0; i < this.total; i++) {
             const entry = bank[i % bank.length];
@@ -847,7 +1229,7 @@ class WordExplorer {
             const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
             const wrongs = [];
             while (wrongs.length < 3) {
-                const l = letters[randInt(0, 25)];
+                const l = letters[this._randInt(0, 25)];
                 if (l !== correct && !wrongs.includes(l)) wrongs.push(l);
             }
             return {
@@ -855,16 +1237,16 @@ class WordExplorer {
                 word: entry.word,
                 emoji: entry.emoji,
                 answer: correct,
-                options: shuffle([correct, ...wrongs])
+                options: this._shuffle([correct, ...wrongs])
             };
         } else if (this.age <= 8) {
-            const pos = randInt(0, entry.word.length - 1);
+            const pos = this._randInt(0, entry.word.length - 1);
             const missing = entry.word[pos];
             const display = entry.word.split('').map((c, i) => i === pos ? '_' : c).join(' ');
             const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
             const wrongs = [];
             while (wrongs.length < 3) {
-                const l = letters[randInt(0, 25)];
+                const l = letters[this._randInt(0, 25)];
                 if (l !== missing && !wrongs.includes(l)) wrongs.push(l);
             }
             return {
@@ -874,13 +1256,13 @@ class WordExplorer {
                 display,
                 answer: missing,
                 position: pos,
-                options: shuffle([missing, ...wrongs])
+                options: this._shuffle([missing, ...wrongs])
             };
         } else {
-            let scrambled = shuffle(entry.word.split('')).join('');
+            let scrambled = this._shuffle(entry.word.split('')).join('');
             let attempts = 0;
             while (scrambled === entry.word && attempts < 10) {
-                scrambled = shuffle(entry.word.split('')).join('');
+                scrambled = this._shuffle(entry.word.split('')).join('');
                 attempts++;
             }
             return {
@@ -1047,10 +1429,11 @@ class WordExplorer {
 
 // ==================== JEU : MÉMOIRE ====================
 class MemoryMatch {
-    constructor(age, container) {
+    constructor(age, container, rng) {
         this.name = 'memory';
         this.age = age;
         this.container = container;
+        this._rng = rng;
         this.moves = 0;
         this.matches = 0;
         this.flippedCards = [];
@@ -1068,13 +1451,15 @@ class MemoryMatch {
             this.gridClass = 'grid-4x5';
         }
 
-        this.emojis = shuffle([
+        const _shuffle = rng ? (a) => rng.shuffle(a) : shuffle;
+
+        this.emojis = _shuffle([
             '\u{1F436}', '\u{1F431}', '\u{1F438}', '\u{1F981}', '\u{1F42F}', '\u{1F428}',
             '\u{1F43C}', '\u{1F42E}', '\u{1F437}', '\u{1F435}', '\u{1F98A}', '\u{1F430}',
             '\u{1F43B}', '\u{1F414}', '\u{1F427}', '\u{1F422}', '\u{1F98B}', '\u{1F41D}'
         ]).slice(0, this.pairs);
 
-        this.cards = shuffle([...this.emojis, ...this.emojis]);
+        this.cards = _shuffle([...this.emojis, ...this.emojis]);
         this.render();
     }
 
@@ -1176,10 +1561,11 @@ class MemoryMatch {
 
 // ==================== JEU : DÉTECTIVE DE MOTIFS ====================
 class PatternDetective {
-    constructor(age, container) {
+    constructor(age, container, rng) {
         this.name = 'pattern';
         this.age = age;
         this.container = container;
+        this._rng = rng;
         this.score = 0;
         this.current = 0;
         this.total = 8;
@@ -1187,6 +1573,10 @@ class PatternDetective {
         this.generateQuestions();
         this.showQuestion();
     }
+
+    _randInt(min, max) { return this._rng ? this._rng.randInt(min, max) : randInt(min, max); }
+    _shuffle(arr) { return this._rng ? this._rng.shuffle(arr) : shuffle(arr); }
+    _random() { return this._rng ? this._rng.next() : Math.random(); }
 
     generateQuestions() {
         this.questions = [];
@@ -1199,9 +1589,9 @@ class PatternDetective {
         if (this.age <= 6) {
             return this.createSimplePattern();
         } else if (this.age <= 8) {
-            return Math.random() > 0.4 ? this.createMediumPattern() : this.createSimplePattern();
+            return this._random() > 0.4 ? this.createMediumPattern() : this.createSimplePattern();
         } else {
-            return Math.random() > 0.3 ? this.createHardPattern() : this.createMediumPattern();
+            return this._random() > 0.3 ? this.createHardPattern() : this.createMediumPattern();
         }
     }
 

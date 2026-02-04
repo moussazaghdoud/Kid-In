@@ -53,6 +53,68 @@
         </div>
     </div>
 
+    <!-- ==================== ÉCRAN SÉLECTION DU JOUEUR ==================== -->
+    <div id="player-select-screen" class="screen">
+        <div class="screen-content" style="text-align:center;">
+            <button class="btn-back" id="back-to-welcome-from-player">&#8592; Retour</button>
+            <h2 class="screen-title">Qui es-tu ?</h2>
+            <p class="screen-subtitle">Choisis ton personnage !</p>
+            <div class="player-cards">
+                <div class="player-card" data-player="izaac" data-name="Izaac">
+                    <div class="player-photo-ring player-ring-blue">
+                        <img src="images/izaac.jpg" alt="Izaac" class="player-photo">
+                    </div>
+                    <span class="player-name">Izaac</span>
+                </div>
+                <div class="player-card" data-player="aissa" data-name="Aissa">
+                    <div class="player-photo-ring player-ring-pink">
+                        <img src="images/aissa.jpg" alt="Aissa" class="player-photo">
+                    </div>
+                    <span class="player-name">Aissa</span>
+                </div>
+            </div>
+            <div class="play-mode-buttons" id="play-mode-buttons" style="display:none;">
+                <button class="btn-primary" id="play-solo-btn">&#x1F3AE; Jouer seul</button>
+                <button class="btn-primary btn-multi" id="play-together-btn">&#x1F91D; Jouer ensemble</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ÉCRAN LOBBY MULTIJOUEUR ==================== -->
+    <div id="lobby-screen" class="screen">
+        <div class="screen-content" style="text-align:center;">
+            <button class="btn-back" id="back-to-player-select">&#8592; Retour</button>
+            <h2 class="screen-title">Jouer ensemble !</h2>
+            <p class="screen-subtitle">Connecte-toi avec ton ami(e) !</p>
+
+            <div class="lobby-options" id="lobby-options">
+                <button class="btn-primary lobby-btn" id="create-room-btn">&#x1F3E0; Cr&eacute;er une partie</button>
+                <div class="lobby-divider"><span>ou</span></div>
+                <div class="join-room-section">
+                    <p class="join-label">Rejoindre une partie :</p>
+                    <div class="room-code-input-group">
+                        <input type="text" id="room-code-input" class="room-code-input" maxlength="6" placeholder="CODE" autocapitalize="characters" autocomplete="off">
+                        <button class="btn-primary" id="join-room-btn">Rejoindre</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lobby-waiting hidden" id="lobby-waiting">
+                <div class="room-code-display">
+                    <p class="room-code-label">Code de la salle :</p>
+                    <div class="room-code-value" id="room-code-display">------</div>
+                    <p class="room-code-hint">Donne ce code &agrave; ton ami(e) !</p>
+                </div>
+                <div class="lobby-players" id="lobby-players"></div>
+                <div class="lobby-video-preview">
+                    <video id="lobby-local-video" autoplay muted playsinline></video>
+                </div>
+                <p class="lobby-status" id="lobby-status">En attente d'un joueur...</p>
+                <button class="btn-primary hidden" id="lobby-start-btn">&#x1F680; Commencer !</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== ÉCRAN SÉLECTION D'ÂGE ==================== -->
     <div id="age-screen" class="screen">
         <div class="screen-content">
@@ -263,6 +325,48 @@
         </div>
     </div>
 
+    <!-- ==================== VIDEO CHAT OVERLAY ==================== -->
+    <div id="video-chat-overlay" class="video-chat-overlay">
+        <div class="vc-remote">
+            <video id="remote-video" autoplay playsinline></video>
+        </div>
+        <div class="vc-local">
+            <video id="local-video" autoplay muted playsinline></video>
+        </div>
+        <div class="vc-controls">
+            <button class="vc-btn" id="vc-mute-btn">&#x1F3A4;</button>
+            <button class="vc-btn" id="vc-camera-btn">&#x1F3A5;</button>
+        </div>
+    </div>
+
+    <!-- ==================== MULTIPLAYER SCORE HEADER ==================== -->
+    <div id="mp-score-header" class="mp-score-header hidden">
+        <div class="mp-player mp-player-left">
+            <div class="mp-avatar" id="mp-avatar-left"></div>
+            <span class="mp-player-name" id="mp-name-left"></span>
+            <span class="mp-player-score" id="mp-score-left">0</span>
+        </div>
+        <div class="mp-vs">VS</div>
+        <div class="mp-player mp-player-right">
+            <span class="mp-player-score" id="mp-score-right">0</span>
+            <span class="mp-player-name" id="mp-name-right"></span>
+            <div class="mp-avatar" id="mp-avatar-right"></div>
+        </div>
+    </div>
+
+    <!-- ==================== DISCONNECTION OVERLAY ==================== -->
+    <div id="disconnect-overlay" class="disconnect-overlay hidden">
+        <div class="disconnect-content">
+            <span class="disconnect-emoji">&#x1F614;</span>
+            <h2>Ton ami(e) s'est d&eacute;connect&eacute;(e)</h2>
+            <p>La connexion a &eacute;t&eacute; perdue...</p>
+            <button class="btn-primary" id="disconnect-back-btn">Retour au menu</button>
+        </div>
+    </div>
+
+    <script src="js/seeded-random.js"></script>
+    <script src="js/multiplayer.js"></script>
+    <script src="js/webrtc.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
