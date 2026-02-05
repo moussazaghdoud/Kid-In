@@ -108,7 +108,7 @@
                 </div>
                 <div class="lobby-players" id="lobby-players"></div>
                 <div class="lobby-video-preview">
-                    <video id="lobby-local-video" autoplay muted playsinline></video>
+                    <video id="lobby-local-video" autoplay muted playsinline webkit-playsinline></video>
                 </div>
                 <p class="lobby-status" id="lobby-status">En attente d'un joueur...</p>
                 <button class="btn-primary hidden" id="lobby-start-btn">&#x1F680; Commencer !</button>
@@ -329,10 +329,10 @@
     <!-- ==================== VIDEO CHAT OVERLAY ==================== -->
     <div id="video-chat-overlay" class="video-chat-overlay">
         <div class="vc-remote">
-            <video id="remote-video" autoplay playsinline></video>
+            <video id="remote-video" autoplay playsinline webkit-playsinline></video>
         </div>
         <div class="vc-local">
-            <video id="local-video" autoplay muted playsinline></video>
+            <video id="local-video" autoplay muted playsinline webkit-playsinline></video>
         </div>
         <div class="vc-controls">
             <button class="vc-btn" id="vc-mute-btn">&#x1F3A4;</button>

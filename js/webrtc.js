@@ -40,29 +40,60 @@ const VideoChat = {
     },
 
     async startLocalMedia() {
+        // Check if mediaDevices is available (requires HTTPS on mobile)
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error('[VideoChat] mediaDevices not available - HTTPS required on mobile');
+            alert('La caméra nécessite une connexion sécurisée (HTTPS)');
+            return false;
+        }
+
+        // Try video + audio first
         try {
+            console.log('[VideoChat] Requesting camera + microphone...');
             this.localStream = await navigator.mediaDevices.getUserMedia({
                 audio: { echoCancellation: true, noiseSuppression: true },
-                video: { width: 160, height: 120, frameRate: 15 }
+                video: {
+                    width: { ideal: 160, max: 320 },
+                    height: { ideal: 120, max: 240 },
+                    frameRate: { ideal: 15, max: 30 },
+                    facingMode: 'user'  // Front camera on mobile
+                }
             });
+            console.log('[VideoChat] Got video + audio stream');
 
             const localVideo = document.getElementById('local-video');
             if (localVideo) {
                 localVideo.srcObject = this.localStream;
+                localVideo.setAttribute('playsinline', 'true');  // Required for iOS
+                localVideo.setAttribute('autoplay', 'true');
+                localVideo.muted = true;
+            }
+
+            // Also set lobby preview
+            const lobbyVideo = document.getElementById('lobby-local-video');
+            if (lobbyVideo) {
+                lobbyVideo.srcObject = this.localStream;
+                lobbyVideo.setAttribute('playsinline', 'true');
+                lobbyVideo.setAttribute('autoplay', 'true');
+                lobbyVideo.muted = true;
             }
 
             return true;
         } catch (err) {
-            console.warn('Camera/mic access denied:', err.message);
+            console.warn('[VideoChat] Camera access failed:', err.name, err.message);
+
             // Try audio only
             try {
+                console.log('[VideoChat] Trying audio only...');
                 this.localStream = await navigator.mediaDevices.getUserMedia({
                     audio: { echoCancellation: true, noiseSuppression: true },
                     video: false
                 });
+                console.log('[VideoChat] Got audio-only stream');
                 return true;
             } catch (err2) {
-                console.warn('Audio access also denied:', err2.message);
+                console.error('[VideoChat] Audio access also failed:', err2.name, err2.message);
+                alert('Impossible d\'accéder au micro. Vérifie les permissions.');
                 return false;
             }
         }
