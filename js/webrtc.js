@@ -10,6 +10,8 @@ const VideoChat = {
     isActive: false,
     isMuted: false,
     isCameraOff: false,
+    pendingIceCandidates: [],  // Queue for ICE candidates that arrive early
+    isNegotiating: false,
 
     config: {
         iceServers: [
@@ -126,6 +128,13 @@ const VideoChat = {
 
     async createOffer() {
         console.log('[VideoChat] Creating offer...');
+
+        // Make sure local media is started first
+        if (!this.localStream) {
+            console.log('[VideoChat] Starting local media before offering...');
+            await this.startLocalMedia();
+        }
+
         this.createPeerConnection();
         const offer = await this.pc.createOffer();
         await this.pc.setLocalDescription(offer);
@@ -135,8 +144,19 @@ const VideoChat = {
 
     async handleOffer(offer) {
         console.log('[VideoChat] Received offer, creating answer...');
+
+        // Make sure local media is started first
+        if (!this.localStream) {
+            console.log('[VideoChat] Starting local media before answering...');
+            await this.startLocalMedia();
+        }
+
         this.createPeerConnection();
         await this.pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+        // Process any ICE candidates that arrived before we were ready
+        await this._processQueuedCandidates();
+
         const answer = await this.pc.createAnswer();
         await this.pc.setLocalDescription(answer);
         console.log('[VideoChat] Answer created and sent');
@@ -145,16 +165,42 @@ const VideoChat = {
 
     async handleAnswer(answer) {
         if (this.pc) {
+            console.log('[VideoChat] Received answer, setting remote description...');
             await this.pc.setRemoteDescription(new RTCSessionDescription(answer));
+            console.log('[VideoChat] Remote description set, processing queued ICE candidates...');
+            // Process any queued ICE candidates
+            await this._processQueuedCandidates();
         }
     },
 
     async handleIceCandidate(candidate) {
-        if (this.pc) {
+        if (!candidate) return;
+
+        // If no peer connection or remote description not set, queue the candidate
+        if (!this.pc || !this.pc.remoteDescription || !this.pc.remoteDescription.type) {
+            console.log('[VideoChat] Queuing ICE candidate (connection not ready)');
+            this.pendingIceCandidates.push(candidate);
+            return;
+        }
+
+        try {
+            console.log('[VideoChat] Adding ICE candidate');
+            await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+            console.warn('[VideoChat] Error adding ICE candidate:', e.message);
+        }
+    },
+
+    async _processQueuedCandidates() {
+        if (!this.pc || !this.pc.remoteDescription) return;
+
+        console.log(`[VideoChat] Processing ${this.pendingIceCandidates.length} queued ICE candidates`);
+        while (this.pendingIceCandidates.length > 0) {
+            const candidate = this.pendingIceCandidates.shift();
             try {
                 await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
             } catch (e) {
-                // Ignore ICE errors
+                console.warn('[VideoChat] Error adding queued ICE candidate:', e.message);
             }
         }
     },
@@ -220,6 +266,8 @@ const VideoChat = {
         }
         this.isActive = false;
         this.remoteStream = null;
+        this.pendingIceCandidates = [];
+        this.isNegotiating = false;
         this.hideOverlay();
     }
 };
