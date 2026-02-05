@@ -51,15 +51,11 @@ const VideoChat = {
         try {
             console.log('[VideoChat] Requesting camera + microphone...');
             this.localStream = await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation: true, noiseSuppression: true },
-                video: {
-                    width: { ideal: 160, max: 320 },
-                    height: { ideal: 120, max: 240 },
-                    frameRate: { ideal: 15, max: 30 },
-                    facingMode: 'user'  // Front camera on mobile
-                }
+                audio: true,
+                video: { facingMode: 'user' }  // Simple constraints for mobile compatibility
             });
-            console.log('[VideoChat] Got video + audio stream');
+            console.log('[VideoChat] Got video + audio stream, tracks:',
+                this.localStream.getTracks().map(t => t.kind).join(', '));
 
             const localVideo = document.getElementById('local-video');
             if (localVideo) {
