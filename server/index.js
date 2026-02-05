@@ -15,11 +15,8 @@ app.use(express.static(path.join(__dirname, '..')));
 const rooms = new Map();
 
 function generateRoomCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = '';
-    for (let i = 0; i < 6; i++) {
-        code += chars[Math.floor(Math.random() * chars.length)];
-    }
+    // Simple 3-digit code (000-999)
+    const code = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     return code;
 }
 

@@ -473,8 +473,8 @@ const App = {
         document.getElementById('join-room-btn').addEventListener('click', async () => {
             Sound.play('click');
             const code = document.getElementById('room-code-input').value.trim().toUpperCase();
-            if (code.length !== 6) {
-                document.getElementById('lobby-status').textContent = 'Entre un code à 6 caractères';
+            if (code.length !== 3) {
+                document.getElementById('lobby-status').textContent = 'Entre un code à 3 chiffres';
                 return;
             }
             if (!Multiplayer.isReady()) {

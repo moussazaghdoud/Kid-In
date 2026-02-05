@@ -171,7 +171,7 @@ const Multiplayer = {
     },
 
     joinRoom(roomCode, playerName, avatar) {
-        this.send({ type: 'room:join', roomCode: roomCode.toUpperCase(), playerName, avatar });
+        this.send({ type: 'room:join', roomCode: roomCode.trim(), playerName, avatar });
     },
 
     leaveRoom() {
