@@ -244,13 +244,17 @@ const VideoChat = {
     },
 
     setupSignaling() {
+        console.log('[VideoChat] Setting up signaling handlers');
         Multiplayer.onRtcOffer = (msg) => {
+            console.log('[VideoChat] Received RTC offer from:', msg.from);
             this.handleOffer(msg.data);
         };
         Multiplayer.onRtcAnswer = (msg) => {
+            console.log('[VideoChat] Received RTC answer from:', msg.from);
             this.handleAnswer(msg.data);
         };
         Multiplayer.onRtcIce = (msg) => {
+            console.log('[VideoChat] Received ICE candidate from:', msg.from);
             this.handleIceCandidate(msg.data);
         };
     },

@@ -551,20 +551,21 @@ const App = {
                 playersEl.appendChild(div);
             });
 
+            // Always setup signaling and start media for both players
+            await this._startLobbyVideo();
+            VideoChat.setupSignaling();
+
             if (players.length >= 2) {
-                document.getElementById('lobby-status').textContent = 'Tout le monde est l\u00E0 !';
+                document.getElementById('lobby-status').textContent = 'Tout le monde est là !';
 
                 if (Multiplayer.isHost) {
                     document.getElementById('lobby-start-btn').classList.remove('hidden');
+                    // Host initiates the WebRTC connection
+                    console.log('[App] Host starting video call...');
+                    setTimeout(() => VideoChat.createOffer(), 1500);
                 } else {
-                    document.getElementById('lobby-status').textContent = 'L\'h\u00F4te va choisir le jeu...';
-                }
-
-                // Start video chat
-                await this._startLobbyVideo();
-                VideoChat.setupSignaling();
-                if (Multiplayer.isHost) {
-                    setTimeout(() => VideoChat.createOffer(), 1000);
+                    document.getElementById('lobby-status').textContent = 'L\'hôte va choisir le jeu...';
+                    console.log('[App] Guest waiting for video call offer...');
                 }
             }
         };
@@ -601,13 +602,19 @@ const App = {
     },
 
     async _startLobbyVideo() {
+        console.log('[App] Starting lobby video...');
         const hasMedia = await VideoChat.startLocalMedia();
+        console.log('[App] Local media started:', hasMedia);
         if (hasMedia) {
             const lobbyVideo = document.getElementById('lobby-local-video');
             if (lobbyVideo && VideoChat.localStream) {
                 lobbyVideo.srcObject = VideoChat.localStream;
+                console.log('[App] Local video preview set');
             }
+        } else {
+            console.log('[App] Could not get camera/microphone access');
         }
+        return hasMedia;
     },
 
     _updateConnectionIndicator(connected) {
