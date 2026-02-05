@@ -10,6 +10,9 @@ const Multiplayer = {
     players: [],
     isHost: false,
     connected: false,
+    connecting: false,
+    reconnectAttempts: 0,
+    maxReconnectAttempts: 5,
     onRoomCreated: null,
     onRoomJoined: null,
     onRoomError: null,
@@ -20,29 +23,71 @@ const Multiplayer = {
     onRtcOffer: null,
     onRtcAnswer: null,
     onRtcIce: null,
+    onConnectionChange: null,
 
     connect() {
+        if (this.connected || this.connecting) {
+            return Promise.resolve();
+        }
+        this.connecting = true;
+
         return new Promise((resolve, reject) => {
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
             const url = `${protocol}//${location.host}/ws`;
-            this.ws = new WebSocket(url);
+
+            try {
+                this.ws = new WebSocket(url);
+            } catch (e) {
+                this.connecting = false;
+                reject(new Error('Connexion impossible'));
+                return;
+            }
+
+            const connectionTimeout = setTimeout(() => {
+                this.connecting = false;
+                if (this.ws) {
+                    this.ws.close();
+                }
+                reject(new Error('Délai de connexion dépassé'));
+            }, 10000);
 
             this.ws.onopen = () => {
+                clearTimeout(connectionTimeout);
                 this.connected = true;
+                this.connecting = false;
+                this.reconnectAttempts = 0;
+                console.log('[Multiplayer] Connected to server');
+                if (this.onConnectionChange) this.onConnectionChange(true);
                 resolve();
             };
 
-            this.ws.onerror = () => {
+            this.ws.onerror = (err) => {
+                clearTimeout(connectionTimeout);
+                this.connecting = false;
+                console.error('[Multiplayer] WebSocket error:', err);
                 reject(new Error('Connexion impossible'));
             };
 
-            this.ws.onclose = () => {
+            this.ws.onclose = (event) => {
+                clearTimeout(connectionTimeout);
                 this.connected = false;
+                this.connecting = false;
+                console.log('[Multiplayer] Disconnected, code:', event.code);
+                if (this.onConnectionChange) this.onConnectionChange(false);
+
                 if (this.roomCode) {
+                    const wasInRoom = this.roomCode;
                     this.roomCode = null;
                     if (this.onPlayerLeft) {
-                        this.onPlayerLeft({ disconnected: true });
+                        this.onPlayerLeft({ disconnected: true, wasInRoom });
                     }
+                }
+
+                // Auto-reconnect if unexpected disconnect
+                if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    console.log(`[Multiplayer] Reconnecting (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+                    setTimeout(() => this.connect().catch(() => {}), 2000);
                 }
             };
 
@@ -55,10 +100,15 @@ const Multiplayer = {
 
     _handleMessage(msg) {
         switch (msg.type) {
+            case 'connected':
+                console.log('[Multiplayer] Server confirmed connection, id:', msg.playerId);
+                break;
+
             case 'room:created':
                 this.playerId = msg.playerId;
                 this.roomCode = msg.roomCode;
                 this.isHost = true;
+                console.log('[Multiplayer] Room created:', msg.roomCode);
                 if (this.onRoomCreated) this.onRoomCreated(msg.roomCode);
                 break;
 
@@ -66,11 +116,13 @@ const Multiplayer = {
                 this.playerId = msg.playerId;
                 this.roomCode = msg.roomCode;
                 this.isHost = false;
+                console.log('[Multiplayer] Joined room:', msg.roomCode);
                 break;
 
             case 'room:joined':
                 this.players = msg.players;
                 this.roomCode = msg.roomCode;
+                console.log('[Multiplayer] Players in room:', this.players.map(p => p.name).join(', '));
                 if (this.onRoomJoined) this.onRoomJoined(msg.players);
                 break;
 
@@ -150,14 +202,21 @@ const Multiplayer = {
     },
 
     disconnect() {
+        this.reconnectAttempts = this.maxReconnectAttempts; // Prevent auto-reconnect
         if (this.ws) {
-            this.ws.close();
+            this.ws.close(1000, 'User disconnect');
             this.ws = null;
         }
         this.connected = false;
+        this.connecting = false;
         this.roomCode = null;
         this.players = [];
         this.isHost = false;
+        this.playerId = null;
+    },
+
+    isReady() {
+        return this.connected && this.ws && this.ws.readyState === WebSocket.OPEN;
     }
 };
 

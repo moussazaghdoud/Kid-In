@@ -428,10 +428,15 @@ const App = {
             Sound.play('click');
             this.isMultiplayer = true;
             this.showScreen('lobby-screen');
+            document.getElementById('lobby-status').textContent = 'Connexion au serveur...';
+            this._updateConnectionIndicator(false);
             try {
                 await Multiplayer.connect();
+                document.getElementById('lobby-status').textContent = '';
+                this._updateConnectionIndicator(true);
             } catch (e) {
-                document.getElementById('lobby-status').textContent = 'Erreur de connexion...';
+                document.getElementById('lobby-status').textContent = 'Erreur de connexion. Réessaye !';
+                this._updateConnectionIndicator(false);
             }
         });
 
@@ -448,18 +453,41 @@ const App = {
         });
 
         // Create room
-        document.getElementById('create-room-btn').addEventListener('click', () => {
+        document.getElementById('create-room-btn').addEventListener('click', async () => {
             Sound.play('click');
-            if (!Multiplayer.connected) return;
+            if (!Multiplayer.isReady()) {
+                document.getElementById('lobby-status').textContent = 'Connexion en cours...';
+                try {
+                    await Multiplayer.connect();
+                    this._updateConnectionIndicator(true);
+                } catch (e) {
+                    document.getElementById('lobby-status').textContent = 'Impossible de se connecter';
+                    return;
+                }
+            }
+            document.getElementById('lobby-status').textContent = 'Création de la salle...';
             Multiplayer.createRoom(this.playerName, this.playerAvatar);
         });
 
         // Join room
-        document.getElementById('join-room-btn').addEventListener('click', () => {
+        document.getElementById('join-room-btn').addEventListener('click', async () => {
             Sound.play('click');
             const code = document.getElementById('room-code-input').value.trim().toUpperCase();
-            if (code.length !== 6) return;
-            if (!Multiplayer.connected) return;
+            if (code.length !== 6) {
+                document.getElementById('lobby-status').textContent = 'Entre un code à 6 caractères';
+                return;
+            }
+            if (!Multiplayer.isReady()) {
+                document.getElementById('lobby-status').textContent = 'Connexion en cours...';
+                try {
+                    await Multiplayer.connect();
+                    this._updateConnectionIndicator(true);
+                } catch (e) {
+                    document.getElementById('lobby-status').textContent = 'Impossible de se connecter';
+                    return;
+                }
+            }
+            document.getElementById('lobby-status').textContent = 'Recherche de la salle...';
             Multiplayer.joinRoom(code, this.playerName, this.playerAvatar);
         });
 
@@ -542,9 +570,17 @@ const App = {
 
         Multiplayer.onRoomError = (message) => {
             document.getElementById('lobby-status').textContent = message;
-            setTimeout(() => {
-                document.getElementById('lobby-status').textContent = '';
-            }, 3000);
+            // Show lobby options again so user can retry
+            document.getElementById('lobby-options').classList.remove('hidden');
+            document.getElementById('lobby-waiting').classList.add('hidden');
+        };
+
+        // Connection state change handler
+        Multiplayer.onConnectionChange = (connected) => {
+            this._updateConnectionIndicator(connected);
+            if (!connected && this.currentScreen === 'lobby-screen') {
+                document.getElementById('lobby-status').textContent = 'Connexion perdue. Reconnexion...';
+            }
         };
 
         Multiplayer.onPlayerLeft = (msg) => {
@@ -570,6 +606,14 @@ const App = {
             if (lobbyVideo && VideoChat.localStream) {
                 lobbyVideo.srcObject = VideoChat.localStream;
             }
+        }
+    },
+
+    _updateConnectionIndicator(connected) {
+        const indicator = document.getElementById('connection-indicator');
+        if (indicator) {
+            indicator.className = 'connection-indicator ' + (connected ? 'connected' : 'disconnected');
+            indicator.title = connected ? 'Connecté au serveur' : 'Déconnecté';
         }
     },
 

@@ -2197,6 +2197,34 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 }
 
 /* ---------- Lobby Screen ---------- */
+/* Connection Indicator */
+.connection-indicator {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    box-shadow: 0 0 8px currentColor;
+    transition: background 0.3s, box-shadow 0.3s;
+}
+
+.connection-indicator.connected {
+    background: #51CF66;
+    box-shadow: 0 0 10px #51CF66;
+}
+
+.connection-indicator.disconnected {
+    background: #FF6B6B;
+    box-shadow: 0 0 10px #FF6B6B;
+    animation: pulse-disconnect 1.5s infinite;
+}
+
+@keyframes pulse-disconnect {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 .lobby-options {
     max-width: 400px;
     margin: 30px auto;

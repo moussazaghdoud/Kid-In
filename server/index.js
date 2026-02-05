@@ -80,6 +80,11 @@ wss.on('connection', (ws) => {
     ws.playerId = uuidv4();
     ws.isAlive = true;
 
+    console.log(`[Server] New connection: ${ws.playerId}`);
+
+    // Send immediate confirmation to client
+    sendTo(ws, { type: 'connected', playerId: ws.playerId });
+
     ws.on('pong', () => { ws.isAlive = true; });
 
     ws.on('message', (raw) => {
@@ -349,11 +354,13 @@ wss.on('connection', (ws) => {
         }
     });
 
-    ws.on('close', () => {
+    ws.on('close', (code, reason) => {
+        console.log(`[Server] Connection closed: ${ws.playerId}, code: ${code}`);
         removePlayerFromRoom(ws);
     });
 
-    ws.on('error', () => {
+    ws.on('error', (err) => {
+        console.error(`[Server] Connection error: ${ws.playerId}`, err.message);
         removePlayerFromRoom(ws);
     });
 });
