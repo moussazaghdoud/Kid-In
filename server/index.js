@@ -98,6 +98,8 @@ wss.on('connection', (ws) => {
                 let code = generateRoomCode();
                 while (rooms.has(code)) code = generateRoomCode();
 
+                console.log(`[Server] Creating room ${code} for player ${ws.playerId}`);
+
                 ws.playerName = msg.playerName || 'Joueur';
                 ws.playerAvatar = msg.avatar || 'izaac';
                 ws.roomCode = code;
@@ -121,19 +123,25 @@ wss.on('connection', (ws) => {
             }
 
             case 'room:join': {
-                const room = rooms.get(msg.roomCode);
+                const roomCode = String(msg.roomCode).trim();
+                console.log(`[Server] Player ${ws.playerId} trying to join room: "${roomCode}"`);
+                console.log(`[Server] Available rooms:`, Array.from(rooms.keys()));
+
+                const room = rooms.get(roomCode);
                 if (!room) {
+                    console.log(`[Server] Room "${roomCode}" not found`);
                     sendTo(ws, { type: 'room:error', message: 'Salle introuvable' });
                     break;
                 }
                 if (room.players.length >= 2) {
+                    console.log(`[Server] Room "${roomCode}" is full`);
                     sendTo(ws, { type: 'room:error', message: 'Salle pleine' });
                     break;
                 }
 
                 ws.playerName = msg.playerName || 'Joueur';
                 ws.playerAvatar = msg.avatar || 'aissa';
-                ws.roomCode = msg.roomCode;
+                ws.roomCode = roomCode;
 
                 room.players.push({
                     id: ws.playerId,
@@ -143,8 +151,9 @@ wss.on('connection', (ws) => {
                     score: 0
                 });
 
-                sendTo(ws, { type: 'room:joined-ack', playerId: ws.playerId, roomCode: msg.roomCode });
-                broadcastRoomState(msg.roomCode);
+                console.log(`[Server] Player ${ws.playerName} joined room ${roomCode}. Players: ${room.players.length}`);
+                sendTo(ws, { type: 'room:joined-ack', playerId: ws.playerId, roomCode: roomCode });
+                broadcastRoomState(roomCode);
                 break;
             }
 

@@ -127,6 +127,7 @@ const Multiplayer = {
                 break;
 
             case 'room:error':
+                console.log('[Multiplayer] Room error:', msg.message);
                 if (this.onRoomError) this.onRoomError(msg.message);
                 break;
 
@@ -171,7 +172,9 @@ const Multiplayer = {
     },
 
     joinRoom(roomCode, playerName, avatar) {
-        this.send({ type: 'room:join', roomCode: roomCode.trim(), playerName, avatar });
+        const code = roomCode.trim();
+        console.log('[Multiplayer] Sending join request for room:', code);
+        this.send({ type: 'room:join', roomCode: code, playerName, avatar });
     },
 
     leaveRoom() {

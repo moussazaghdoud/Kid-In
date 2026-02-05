@@ -487,6 +487,7 @@ const App = {
                     return;
                 }
             }
+            console.log('[App] Joining room with code:', code);
             document.getElementById('lobby-status').textContent = 'Recherche de la salle...';
             Multiplayer.joinRoom(code, this.playerName, this.playerAvatar);
         });
