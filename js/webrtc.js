@@ -14,8 +14,27 @@ const VideoChat = {
     config: {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-        ]
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            // Free TURN servers from OpenRelay (metered.ca)
+            {
+                urls: 'turn:openrelay.metered.ca:80',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            }
+        ],
+        iceCandidatePoolSize: 10
     },
 
     async startLocalMedia() {
@@ -48,11 +67,13 @@ const VideoChat = {
     },
 
     createPeerConnection() {
+        console.log('[VideoChat] Creating peer connection with config:', this.config);
         this.pc = new RTCPeerConnection(this.config);
 
         // Add local tracks
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => {
+                console.log('[VideoChat] Adding local track:', track.kind);
                 this.pc.addTrack(track, this.localStream);
             });
         }
@@ -65,6 +86,7 @@ const VideoChat = {
         }
 
         this.pc.ontrack = (event) => {
+            console.log('[VideoChat] Received remote track:', event.track.kind);
             event.streams[0].getTracks().forEach(track => {
                 this.remoteStream.addTrack(track);
             });
@@ -76,32 +98,48 @@ const VideoChat = {
         // ICE candidates
         this.pc.onicecandidate = (event) => {
             if (event.candidate) {
+                console.log('[VideoChat] ICE candidate:', event.candidate.type, event.candidate.protocol);
                 Multiplayer.sendRtc('rtc:ice', event.candidate);
             }
         };
 
         this.pc.oniceconnectionstatechange = () => {
-            if (this.pc.iceConnectionState === 'connected') {
+            console.log('[VideoChat] ICE connection state:', this.pc.iceConnectionState);
+            if (this.pc.iceConnectionState === 'connected' || this.pc.iceConnectionState === 'completed') {
                 this.isActive = true;
                 this._showOverlay();
+                console.log('[VideoChat] Video chat connected!');
             } else if (this.pc.iceConnectionState === 'disconnected' || this.pc.iceConnectionState === 'failed') {
                 this.isActive = false;
+                console.log('[VideoChat] Video chat disconnected/failed');
             }
+        };
+
+        this.pc.onconnectionstatechange = () => {
+            console.log('[VideoChat] Connection state:', this.pc.connectionState);
+        };
+
+        this.pc.onicegatheringstatechange = () => {
+            console.log('[VideoChat] ICE gathering state:', this.pc.iceGatheringState);
         };
     },
 
     async createOffer() {
+        console.log('[VideoChat] Creating offer...');
         this.createPeerConnection();
         const offer = await this.pc.createOffer();
         await this.pc.setLocalDescription(offer);
+        console.log('[VideoChat] Offer created and sent');
         Multiplayer.sendRtc('rtc:offer', offer);
     },
 
     async handleOffer(offer) {
+        console.log('[VideoChat] Received offer, creating answer...');
         this.createPeerConnection();
         await this.pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await this.pc.createAnswer();
         await this.pc.setLocalDescription(answer);
+        console.log('[VideoChat] Answer created and sent');
         Multiplayer.sendRtc('rtc:answer', answer);
     },
 
