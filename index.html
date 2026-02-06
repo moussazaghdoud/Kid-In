@@ -107,10 +107,7 @@
                     <p class="room-code-hint">Donne ce code &agrave; ton ami(e) !</p>
                 </div>
                 <div class="lobby-players" id="lobby-players"></div>
-                <div class="lobby-video-preview">
-                    <video id="lobby-local-video" autoplay muted playsinline webkit-playsinline></video>
-                </div>
-                <p class="lobby-status" id="lobby-status">En attente d'un joueur...</p>
+                    <p class="lobby-status" id="lobby-status">En attente d'un joueur...</p>
                 <button class="btn-primary hidden" id="lobby-start-btn">&#x1F680; Commencer !</button>
             </div>
         </div>
@@ -326,20 +323,10 @@
         </div>
     </div>
 
-    <!-- ==================== VIDEO CHAT OVERLAY ==================== -->
+    <!-- ==================== VIDEO CHAT OVERLAY (Jitsi) ==================== -->
     <div id="video-chat-overlay" class="video-chat-overlay">
-        <div class="vc-remote">
-            <img id="remote-avatar" class="vc-avatar" src="" alt="Partner" style="display:none;">
-            <video id="remote-video" autoplay playsinline webkit-playsinline></video>
-        </div>
-        <div class="vc-local">
-            <img id="local-avatar" class="vc-avatar" src="" alt="You" style="display:none;">
-            <video id="local-video" autoplay muted playsinline webkit-playsinline></video>
-        </div>
-        <div class="vc-controls">
-            <button class="vc-btn" id="vc-mute-btn">&#x1F3A4;</button>
-            <button class="vc-btn" id="vc-camera-btn">&#x1F3A5;</button>
-        </div>
+        <div id="jitsi-container"></div>
+        <button class="vc-btn vc-collapse-btn" id="vc-collapse-btn">&#x1F5D5;</button>
     </div>
 
     <!-- ==================== MULTIPLAYER SCORE HEADER ==================== -->
@@ -369,7 +356,7 @@
 
     <script src="js/seeded-random.js"></script>
     <script src="js/multiplayer.js"></script>
-    <script src="js/webrtc.js"></script>
+    <script src="js/jitsi-chat.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

@@ -509,12 +509,9 @@ const App = {
             this.showScreen('menu-screen');
         });
 
-        // Video chat controls
-        document.getElementById('vc-mute-btn').addEventListener('click', () => {
-            VideoChat.toggleMute();
-        });
-        document.getElementById('vc-camera-btn').addEventListener('click', () => {
-            VideoChat.toggleCamera();
+        // Video chat collapse button
+        document.getElementById('vc-collapse-btn').addEventListener('click', () => {
+            VideoChat.toggle();
         });
 
         // Setup multiplayer callbacks
@@ -551,33 +548,17 @@ const App = {
                 playersEl.appendChild(div);
             });
 
-            // Setup signaling first so we don't miss any messages
-            VideoChat.setupSignaling();
-
-            // Start local media
-            console.log('[App] Starting local media...');
-            const hasMedia = await this._startLobbyVideo();
-            console.log('[App] Local media ready:', hasMedia);
-
             if (players.length >= 2) {
-                document.getElementById('lobby-status').textContent = 'Connexion vidéo en cours...';
+                document.getElementById('lobby-status').textContent = 'Tout le monde est là !';
+
+                // Start Jitsi video chat for both players
+                console.log('[App] Starting Jitsi video chat...');
+                VideoChat.start(Multiplayer.roomCode, this.playerName);
 
                 if (Multiplayer.isHost) {
                     document.getElementById('lobby-start-btn').classList.remove('hidden');
-                    // Host initiates the WebRTC connection - wait a bit for guest to be ready
-                    console.log('[App] Host starting video call in 2 seconds...');
-                    setTimeout(async () => {
-                        try {
-                            await VideoChat.createOffer();
-                            document.getElementById('lobby-status').textContent = 'Tout le monde est là !';
-                        } catch (e) {
-                            console.error('[App] Error creating offer:', e);
-                            document.getElementById('lobby-status').textContent = 'Tout le monde est là !';
-                        }
-                    }, 2000);
                 } else {
-                    document.getElementById('lobby-status').textContent = 'Connexion à l\'hôte...';
-                    console.log('[App] Guest ready, waiting for video call offer...');
+                    document.getElementById('lobby-status').textContent = 'L\'hôte va choisir le jeu...';
                 }
             }
         };
@@ -614,19 +595,10 @@ const App = {
     },
 
     async _startLobbyVideo() {
-        console.log('[App] Starting lobby video...');
-        const hasMedia = await VideoChat.startLocalMedia();
-        console.log('[App] Local media started:', hasMedia);
-        if (hasMedia) {
-            const lobbyVideo = document.getElementById('lobby-local-video');
-            if (lobbyVideo && VideoChat.localStream) {
-                lobbyVideo.srcObject = VideoChat.localStream;
-                console.log('[App] Local video preview set');
-            }
-        } else {
-            console.log('[App] Could not get camera/microphone access');
-        }
-        return hasMedia;
+        // With Jitsi, we don't need to manually start media
+        // Jitsi handles everything when VideoChat.start() is called
+        console.log('[App] Lobby video - Jitsi will handle media');
+        return true;
     },
 
     _updateConnectionIndicator(connected) {

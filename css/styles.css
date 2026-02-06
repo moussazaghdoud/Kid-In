@@ -2393,18 +2393,59 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
     bottom: 20px;
     right: 20px;
     z-index: 1000;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 5px;
+    width: 240px;
+    height: 180px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: #1a1a2e;
+    box-shadow: var(--shadow-lg);
+    border: 2px solid rgba(255,255,255,0.2);
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.3s, visibility 0.3s;
+    transition: opacity 0.3s, visibility 0.3s, width 0.3s, height 0.3s;
 }
 
 .video-chat-overlay.vc-visible {
     opacity: 1;
     visibility: visible;
+}
+
+.video-chat-overlay.vc-collapsed {
+    width: 60px;
+    height: 40px;
+}
+
+#jitsi-container {
+    width: 100%;
+    height: 100%;
+}
+
+#jitsi-container iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.vc-collapse-btn {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0,0,0,0.5);
+    color: white;
+    font-size: 0.8rem;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vc-collapse-btn:hover {
+    background: rgba(0,0,0,0.7);
 }
 
 .vc-remote {
