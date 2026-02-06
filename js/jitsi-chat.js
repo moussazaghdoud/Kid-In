@@ -1,5 +1,5 @@
 /* ============================================
-   Audio Chat - WebRTC Audio Only
+   Audio Chat - WebRTC Audio Only (P2P)
    Uses existing WebSocket signaling (rtc:offer, rtc:answer, rtc:ice)
    ============================================ */
 
@@ -11,6 +11,9 @@ const AudioChat = {
     isMuted: false,
     isConnected: false,
     isHost: false,
+    _ready: null,       // Promise that resolves when pc is set up
+    _resolveReady: null,
+    _pendingIce: [],    // Buffer ICE candidates until pc is ready
 
     // STUN servers (free, reliable - audio only needs STUN, not TURN)
     iceServers: [
@@ -23,6 +26,10 @@ const AudioChat = {
         if (this.isActive) return;
         this.isActive = true;
         this.isHost = isHost;
+        this._pendingIce = [];
+
+        // Create a promise that resolves when the peer connection is ready
+        this._ready = new Promise(resolve => { this._resolveReady = resolve; });
 
         console.log('[AudioChat] Starting audio chat, isHost:', isHost);
         this._showUI('connecting');
@@ -43,6 +50,7 @@ const AudioChat = {
             this._showUI('error', err.name === 'NotAllowedError'
                 ? 'Autorise le micro pour parler !'
                 : 'Micro non disponible');
+            this.isActive = false;
             return;
         }
 
@@ -78,6 +86,7 @@ const AudioChat = {
 
         // Connection state monitoring
         this.pc.onconnectionstatechange = () => {
+            if (!this.pc) return;
             console.log('[AudioChat] Connection state:', this.pc.connectionState);
             switch (this.pc.connectionState) {
                 case 'connected':
@@ -93,8 +102,26 @@ const AudioChat = {
         };
 
         this.pc.oniceconnectionstatechange = () => {
+            if (!this.pc) return;
             console.log('[AudioChat] ICE state:', this.pc.iceConnectionState);
         };
+
+        // Peer connection is ready - resolve the promise
+        this._resolveReady();
+        console.log('[AudioChat] Peer connection ready');
+
+        // Flush any ICE candidates that arrived while we were setting up
+        if (this._pendingIce.length > 0) {
+            console.log('[AudioChat] Flushing', this._pendingIce.length, 'buffered ICE candidates');
+            for (const candidate of this._pendingIce) {
+                try {
+                    await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (err) {
+                    console.error('[AudioChat] Failed to add buffered ICE:', err);
+                }
+            }
+            this._pendingIce = [];
+        }
 
         // If host, create and send offer
         if (isHost) {
@@ -114,9 +141,14 @@ const AudioChat = {
     },
 
     async handleOffer(data) {
+        // Wait until peer connection is ready (handles the race condition
+        // where PC host sends offer before mobile guest finishes getUserMedia)
+        if (this._ready) {
+            await this._ready;
+        }
         if (!this.pc) {
-            console.warn('[AudioChat] No peer connection - starting first');
-            await this.start(false);
+            console.error('[AudioChat] handleOffer: no peer connection');
+            return;
         }
         try {
             console.log('[AudioChat] Received offer, setting remote description');
@@ -131,6 +163,10 @@ const AudioChat = {
     },
 
     async handleAnswer(data) {
+        if (this._ready) {
+            await this._ready;
+        }
+        if (!this.pc) return;
         try {
             console.log('[AudioChat] Received answer, setting remote description');
             await this.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
@@ -140,7 +176,12 @@ const AudioChat = {
     },
 
     async handleIce(data) {
-        if (!this.pc) return;
+        // If peer connection isn't ready yet, buffer the candidate
+        if (!this.pc) {
+            console.log('[AudioChat] Buffering ICE candidate (pc not ready)');
+            this._pendingIce.push(data.candidate);
+            return;
+        }
         try {
             await this.pc.addIceCandidate(new RTCIceCandidate(data.candidate));
         } catch (err) {
@@ -180,6 +221,9 @@ const AudioChat = {
         this.isConnected = false;
         this.isMuted = false;
         this.isHost = false;
+        this._ready = null;
+        this._resolveReady = null;
+        this._pendingIce = [];
 
         this._hideUI();
     },
@@ -204,7 +248,6 @@ const AudioChat = {
                 statusEl.className = 'ac-status ac-connected';
                 muteBtn.classList.remove('hidden');
                 this._updateMuteButton();
-                // Auto-hide status after 3s, keep mute button
                 setTimeout(() => {
                     if (this.isConnected) {
                         statusEl.textContent = '';
@@ -242,18 +285,4 @@ const AudioChat = {
             muteBtn.title = 'Couper le micro';
         }
     }
-};
-
-// Keep backward compatibility alias
-const VideoChat = {
-    start(roomCode, playerName) {
-        // Start is now called from app.js after wiring signaling
-        AudioChat.start(Multiplayer.isHost);
-    },
-    stop() { AudioChat.stop(); },
-    hideOverlay() { AudioChat._hideUI(); },
-    toggle() { AudioChat.toggleMute(); },
-    setupSignaling() {},
-    async startLocalMedia() { return true; },
-    async createOffer() {}
 };
