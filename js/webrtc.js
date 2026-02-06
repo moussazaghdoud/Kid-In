@@ -17,23 +17,27 @@ const VideoChat = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            // Free TURN servers from OpenRelay (metered.ca)
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            // Metered TURN servers (free tier)
             {
-                urls: 'turn:openrelay.metered.ca:80',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
+                urls: 'turn:a.relay.metered.ca:80',
+                username: 'e8dd65c92f2f3c9e5c1f7d8a',
+                credential: 'uWdKOlwRZkYTpg7/',
             },
             {
-                urls: 'turn:openrelay.metered.ca:443',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
+                urls: 'turn:a.relay.metered.ca:80?transport=tcp',
+                username: 'e8dd65c92f2f3c9e5c1f7d8a',
+                credential: 'uWdKOlwRZkYTpg7/',
             },
             {
-                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                username: 'openrelayproject',
-                credential: 'openrelayproject'
+                urls: 'turn:a.relay.metered.ca:443',
+                username: 'e8dd65c92f2f3c9e5c1f7d8a',
+                credential: 'uWdKOlwRZkYTpg7/',
+            },
+            {
+                urls: 'turns:a.relay.metered.ca:443?transport=tcp',
+                username: 'e8dd65c92f2f3c9e5c1f7d8a',
+                credential: 'uWdKOlwRZkYTpg7/',
             }
         ],
         iceCandidatePoolSize: 10
@@ -158,40 +162,70 @@ const VideoChat = {
     },
 
     async createOffer() {
-        console.log('[VideoChat] Creating offer...');
+        try {
+            console.log('[VideoChat] Creating offer...');
 
-        // Make sure local media is started first
-        if (!this.localStream) {
-            console.log('[VideoChat] Starting local media before offering...');
-            await this.startLocalMedia();
+            // Make sure local media is started first
+            if (!this.localStream) {
+                console.log('[VideoChat] Starting local media before offering...');
+                await this.startLocalMedia();
+            }
+
+            // Close existing connection if any
+            if (this.pc) {
+                console.log('[VideoChat] Closing existing peer connection');
+                this.pc.close();
+                this.pc = null;
+            }
+
+            this.createPeerConnection();
+            console.log('[VideoChat] Creating SDP offer...');
+            const offer = await this.pc.createOffer();
+            console.log('[VideoChat] Setting local description...');
+            await this.pc.setLocalDescription(offer);
+            console.log('[VideoChat] Sending offer...');
+            Multiplayer.sendRtc('rtc:offer', offer);
+            console.log('[VideoChat] Offer sent successfully');
+        } catch (e) {
+            console.error('[VideoChat] Error creating offer:', e);
         }
-
-        this.createPeerConnection();
-        const offer = await this.pc.createOffer();
-        await this.pc.setLocalDescription(offer);
-        console.log('[VideoChat] Offer created and sent');
-        Multiplayer.sendRtc('rtc:offer', offer);
     },
 
     async handleOffer(offer) {
-        console.log('[VideoChat] Received offer, creating answer...');
+        try {
+            console.log('[VideoChat] Received offer, creating answer...');
 
-        // Make sure local media is started first
-        if (!this.localStream) {
-            console.log('[VideoChat] Starting local media before answering...');
-            await this.startLocalMedia();
+            // Make sure local media is started first
+            if (!this.localStream) {
+                console.log('[VideoChat] Starting local media before answering...');
+                await this.startLocalMedia();
+            }
+
+            // Close existing connection if any
+            if (this.pc) {
+                console.log('[VideoChat] Closing existing peer connection');
+                this.pc.close();
+                this.pc = null;
+            }
+
+            this.createPeerConnection();
+            console.log('[VideoChat] Setting remote description (offer)...');
+            await this.pc.setRemoteDescription(new RTCSessionDescription(offer));
+            console.log('[VideoChat] Remote description set');
+
+            // Process any ICE candidates that arrived before we were ready
+            await this._processQueuedCandidates();
+
+            console.log('[VideoChat] Creating answer...');
+            const answer = await this.pc.createAnswer();
+            console.log('[VideoChat] Setting local description (answer)...');
+            await this.pc.setLocalDescription(answer);
+            console.log('[VideoChat] Answer created and sending...');
+            Multiplayer.sendRtc('rtc:answer', answer);
+            console.log('[VideoChat] Answer sent successfully');
+        } catch (e) {
+            console.error('[VideoChat] Error handling offer:', e);
         }
-
-        this.createPeerConnection();
-        await this.pc.setRemoteDescription(new RTCSessionDescription(offer));
-
-        // Process any ICE candidates that arrived before we were ready
-        await this._processQueuedCandidates();
-
-        const answer = await this.pc.createAnswer();
-        await this.pc.setLocalDescription(answer);
-        console.log('[VideoChat] Answer created and sent');
-        Multiplayer.sendRtc('rtc:answer', answer);
     },
 
     async handleAnswer(answer) {
