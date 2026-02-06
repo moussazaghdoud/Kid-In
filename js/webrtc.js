@@ -121,6 +121,10 @@ const VideoChat = {
             });
             if (remoteVideo) {
                 remoteVideo.srcObject = event.streams[0];
+                // Hide avatar when video track arrives
+                if (event.track.kind === 'video') {
+                    this._onRemoteVideoStarted();
+                }
             }
         };
 
@@ -263,6 +267,39 @@ const VideoChat = {
     _showOverlay() {
         const overlay = document.getElementById('video-chat-overlay');
         if (overlay) overlay.classList.add('vc-visible');
+
+        // Set avatars as fallback
+        this._updateAvatars();
+    },
+
+    _updateAvatars() {
+        const me = Multiplayer.players.find(p => p.id === Multiplayer.playerId);
+        const partner = Multiplayer.getPartner();
+
+        // Local avatar (show if no video track)
+        const localAvatar = document.getElementById('local-avatar');
+        const localVideo = document.getElementById('local-video');
+        if (localAvatar && me) {
+            localAvatar.src = `images/${me.avatar}.jpg`;
+            const hasVideoTrack = this.localStream && this.localStream.getVideoTracks().length > 0;
+            localAvatar.style.display = hasVideoTrack ? 'none' : 'block';
+            if (localVideo) localVideo.style.display = hasVideoTrack ? 'block' : 'none';
+        }
+
+        // Remote avatar (show until remote video arrives)
+        const remoteAvatar = document.getElementById('remote-avatar');
+        const remoteVideo = document.getElementById('remote-video');
+        if (remoteAvatar && partner) {
+            remoteAvatar.src = `images/${partner.avatar}.jpg`;
+            remoteAvatar.style.display = 'block';  // Show by default
+        }
+    },
+
+    _onRemoteVideoStarted() {
+        const remoteAvatar = document.getElementById('remote-avatar');
+        const remoteVideo = document.getElementById('remote-video');
+        if (remoteAvatar) remoteAvatar.style.display = 'none';
+        if (remoteVideo) remoteVideo.style.display = 'block';
     },
 
     hideOverlay() {
