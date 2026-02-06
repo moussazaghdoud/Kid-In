@@ -2390,16 +2390,16 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 /* ---------- Video Chat Overlay ---------- */
 .video-chat-overlay {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
+    bottom: 15px;
+    right: 15px;
     z-index: 1000;
-    width: 180px;
-    height: 120px;
-    border-radius: 16px;
+    width: 280px;
+    height: 200px;
+    border-radius: 12px;
     overflow: hidden;
-    background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-    border: 2px solid rgba(255,255,255,0.15);
+    background: #000;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    border: 3px solid #667eea;
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.3s, visibility 0.3s, width 0.3s, height 0.3s;
@@ -2426,59 +2426,6 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
     border: none;
 }
 
-.vc-button-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    padding: 15px;
-}
-
-.vc-join-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    padding: 15px 25px;
-    font-size: 18px;
-    font-weight: 700;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.vc-join-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
-}
-
-.vc-join-btn.vc-active {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    box-shadow: 0 4px 15px rgba(56, 239, 125, 0.4);
-}
-
-.vc-hint {
-    color: rgba(255,255,255,0.7);
-    font-size: 12px;
-    margin-top: 10px;
-    text-align: center;
-}
-
-.video-chat-overlay.vc-minimized {
-    width: 80px;
-    height: 80px;
-}
-
-.video-chat-overlay.vc-minimized .vc-hint {
-    display: none;
-}
-
-.video-chat-overlay.vc-minimized .vc-join-btn {
-    padding: 10px;
-    font-size: 24px;
-}
 
 .vc-collapse-btn {
     position: absolute;
