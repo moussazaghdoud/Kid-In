@@ -341,6 +341,16 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
     transform: translateX(-3px);
 }
 
+.btn-leave-mp {
+    background: rgba(255, 80, 80, 0.3);
+    font-size: 0.85rem;
+}
+
+.btn-leave-mp:hover {
+    background: rgba(255, 80, 80, 0.5);
+    transform: none;
+}
+
 .pulse-btn {
     animation: pulse 2s ease-in-out infinite;
 }

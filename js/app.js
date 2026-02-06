@@ -132,12 +132,11 @@ const App = {
             this.currentGame = null;
             this.hideMultiplayerHeader();
             if (this.isMultiplayer) {
-                Multiplayer.leaveRoom();
-                Multiplayer.disconnect();
-                AudioChat.stop();
-                this.isMultiplayer = false;
+                // In multiplayer: go back to game selection, keep connection + audio alive
+                this.showScreen('menu-screen');
+            } else {
+                this.showScreen('menu-screen');
             }
-            this.showScreen('menu-screen');
         });
 
         // Bouton rejouer du modal résultat
@@ -204,6 +203,7 @@ const App = {
     },
 
     startGameNow(gameName, seed) {
+        this.hideModal();
         this.showScreen('game-screen');
         const container = document.getElementById('game-container');
         container.innerHTML = '';
@@ -427,6 +427,7 @@ const App = {
         document.getElementById('play-together-btn').addEventListener('click', async () => {
             Sound.play('click');
             this.isMultiplayer = true;
+            this._updateMpUI();
             this.showScreen('lobby-screen');
             document.getElementById('lobby-status').textContent = 'Connexion au serveur...';
             this._updateConnectionIndicator(false);
@@ -447,8 +448,20 @@ const App = {
             Multiplayer.disconnect();
             AudioChat.stop();
             this.isMultiplayer = false;
+            this._updateMpUI();
             document.getElementById('lobby-options').classList.remove('hidden');
             document.getElementById('lobby-waiting').classList.add('hidden');
+            this.showScreen('player-select-screen');
+        });
+
+        // Leave multiplayer from menu screen
+        document.getElementById('leave-mp-btn').addEventListener('click', () => {
+            Sound.play('click');
+            if (Multiplayer.roomCode) Multiplayer.leaveRoom();
+            Multiplayer.disconnect();
+            AudioChat.stop();
+            this.isMultiplayer = false;
+            this._updateMpUI();
             this.showScreen('player-select-screen');
         });
 
@@ -504,6 +517,7 @@ const App = {
             Sound.play('click');
             document.getElementById('disconnect-overlay').classList.add('hidden');
             this.isMultiplayer = false;
+            this._updateMpUI();
             this.hideMultiplayerHeader();
             AudioChat.stop();
             this.showScreen('menu-screen');
@@ -612,6 +626,18 @@ const App = {
         // Audio chat starts when both players join
         console.log('[App] Lobby - audio will start when partner joins');
         return true;
+    },
+
+    _updateMpUI() {
+        const leaveBtn = document.getElementById('leave-mp-btn');
+        const changeAgeBtn = document.getElementById('change-age-btn');
+        if (this.isMultiplayer) {
+            leaveBtn.classList.remove('hidden');
+            changeAgeBtn.classList.add('hidden');
+        } else {
+            leaveBtn.classList.add('hidden');
+            changeAgeBtn.classList.remove('hidden');
+        }
     },
 
     _updateConnectionIndicator(connected) {
