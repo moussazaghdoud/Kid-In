@@ -2390,19 +2390,19 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 /* ---------- Video Chat Overlay ---------- */
 .video-chat-overlay {
     position: fixed;
-    bottom: 10px;
-    right: 10px;
+    bottom: 15px;
+    right: 15px;
     z-index: 1000;
-    width: 320px;
-    height: 280px;
-    border-radius: 12px;
+    width: auto;
+    height: auto;
+    padding: 10px;
+    border-radius: 16px;
     overflow: hidden;
-    background: #000;
+    background: rgba(0,0,0,0.8);
     box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-    border: 3px solid #667eea;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.3s, visibility 0.3s, width 0.3s, height 0.3s;
+    transition: opacity 0.3s, visibility 0.3s;
 }
 
 .video-chat-overlay.vc-visible {
@@ -2418,12 +2418,27 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 #jitsi-container {
     width: 100%;
     height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-#jitsi-container iframe {
-    width: 100%;
-    height: 100%;
-    border: none;
+.vc-link {
+    display: block;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    text-decoration: none;
+    padding: 15px 20px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    transition: transform 0.2s;
+}
+
+.vc-link:hover {
+    transform: scale(1.05);
 }
 
 
