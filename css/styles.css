@@ -2390,11 +2390,11 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 /* ---------- Video Chat Overlay ---------- */
 .video-chat-overlay {
     position: fixed;
-    bottom: 15px;
-    right: 15px;
+    bottom: 10px;
+    right: 10px;
     z-index: 1000;
-    width: 280px;
-    height: 200px;
+    width: 320px;
+    height: 280px;
     border-radius: 12px;
     overflow: hidden;
     background: #000;
