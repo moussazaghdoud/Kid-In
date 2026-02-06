@@ -1,128 +1,90 @@
 /* ============================================
    Jitsi Video Chat Module
-   Simple, reliable video/audio using Jitsi Meet
+   Shows a button to join video call via Jitsi Meet
    ============================================ */
 
 const VideoChat = {
-    api: null,
     roomName: null,
+    jitsiUrl: null,
     isActive: false,
-    isCollapsed: false,
+    popupWindow: null,
 
     start(roomCode, playerName) {
-        if (this.api) {
-            this.stop();
-        }
-
         this.roomName = `KidIn-${roomCode}`;
-        console.log('[VideoChat] Starting Jitsi room:', this.roomName);
 
-        const container = document.getElementById('jitsi-container');
-        if (!container) {
-            console.error('[VideoChat] Container not found');
-            return;
-        }
+        // Build Jitsi URL with config
+        const config = [
+            'config.prejoinPageEnabled=false',
+            'config.startWithAudioMuted=false',
+            'config.startWithVideoMuted=false',
+            'config.disableDeepLinking=true',
+            `userInfo.displayName=${encodeURIComponent(playerName || 'Joueur')}`,
+            'interfaceConfig.TOOLBAR_BUTTONS=["microphone","camera","hangup"]',
+            'interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS=true',
+            'interfaceConfig.MOBILE_APP_PROMO=false',
+            'interfaceConfig.SHOW_JITSI_WATERMARK=false'
+        ].join('&');
 
-        // Load Jitsi API if not loaded
-        if (typeof JitsiMeetExternalAPI === 'undefined') {
-            console.log('[VideoChat] Loading Jitsi API...');
-            const script = document.createElement('script');
-            script.src = 'https://meet.jit.si/external_api.js';
-            script.onload = () => {
-                console.log('[VideoChat] Jitsi API loaded');
-                this._initJitsi(container, playerName);
-            };
-            script.onerror = () => {
-                console.error('[VideoChat] Failed to load Jitsi API');
-            };
-            document.head.appendChild(script);
-        } else {
-            this._initJitsi(container, playerName);
-        }
-    },
+        this.jitsiUrl = `https://meet.jit.si/${this.roomName}#${config}`;
 
-    _initJitsi(container, playerName) {
-        const options = {
-            roomName: this.roomName,
-            parentNode: container,
-            width: '100%',
-            height: '100%',
-            userInfo: {
-                displayName: playerName || 'Joueur'
-            },
-            configOverwrite: {
-                prejoinPageEnabled: false,
-                startWithAudioMuted: false,
-                startWithVideoMuted: false,
-                disableDeepLinking: true,
-                enableWelcomePage: false,
-                enableClosePage: false,
-                disableInviteFunctions: true,
-                hideConferenceSubject: true,
-                hideConferenceTimer: true,
-                toolbarButtons: ['microphone', 'camera'],
-                notifications: [],
-                disableThirdPartyRequests: true,
-                enableNoisyMicDetection: false,
-                enableNoAudioDetection: false
-            },
-            interfaceConfigOverwrite: {
-                TOOLBAR_ALWAYS_VISIBLE: false,
-                TOOLBAR_TIMEOUT: 2000,
-                FILM_STRIP_MAX_HEIGHT: 80,
-                DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
-                HIDE_INVITE_MORE_HEADER: true,
-                MOBILE_APP_PROMO: false,
-                SHOW_JITSI_WATERMARK: false,
-                SHOW_WATERMARK_FOR_GUESTS: false,
-                SHOW_BRAND_WATERMARK: false,
-                SHOW_CHROME_EXTENSION_BANNER: false,
-                DEFAULT_BACKGROUND: '#1a1a2e',
-                DISABLE_PRESENCE_STATUS: true,
-                DISABLE_TRANSCRIPTION_SUBTITLES: true,
-                DISABLE_RINGING: true,
-                FILM_STRIP_MAX_HEIGHT: 100,
-                VERTICAL_FILMSTRIP: false,
-                TILE_VIEW_MAX_COLUMNS: 2
-            }
-        };
+        console.log('[VideoChat] Jitsi room ready:', this.roomName);
+        console.log('[VideoChat] URL:', this.jitsiUrl);
 
-        try {
-            this.api = new JitsiMeetExternalAPI('meet.jit.si', options);
-
-            this.api.addListener('videoConferenceJoined', () => {
-                console.log('[VideoChat] Joined Jitsi room');
-                this.isActive = true;
-                this._showOverlay();
-            });
-
-            this.api.addListener('videoConferenceLeft', () => {
-                console.log('[VideoChat] Left Jitsi room');
-                this.isActive = false;
-            });
-
-            this.api.addListener('participantJoined', (participant) => {
-                console.log('[VideoChat] Participant joined:', participant.displayName);
-            });
-
-            this.api.addListener('participantLeft', (participant) => {
-                console.log('[VideoChat] Participant left:', participant.id);
-            });
-
-            this.api.addListener('readyToClose', () => {
-                console.log('[VideoChat] Ready to close');
-                this.stop();
-            });
-
-        } catch (e) {
-            console.error('[VideoChat] Error initializing Jitsi:', e);
-        }
+        this._showOverlay();
+        this.isActive = true;
     },
 
     _showOverlay() {
         const overlay = document.getElementById('video-chat-overlay');
-        if (overlay) {
+        const container = document.getElementById('jitsi-container');
+
+        if (overlay && container) {
+            container.innerHTML = `
+                <div class="vc-button-container">
+                    <button class="vc-join-btn" onclick="VideoChat.openJitsi()">
+                        📹 Appel Vidéo
+                    </button>
+                    <p class="vc-hint">Cliquez pour voir et parler</p>
+                </div>
+            `;
             overlay.classList.add('vc-visible');
+        }
+    },
+
+    openJitsi() {
+        if (!this.jitsiUrl) {
+            console.error('[VideoChat] No Jitsi URL');
+            return;
+        }
+
+        // Open in popup window (better for gameplay)
+        const width = 400;
+        const height = 500;
+        const left = window.screen.width - width - 20;
+        const top = 100;
+
+        this.popupWindow = window.open(
+            this.jitsiUrl,
+            'JitsiCall',
+            `width=${width},height=${height},left=${left},top=${top},resizable=yes`
+        );
+
+        // If popup blocked, open in new tab
+        if (!this.popupWindow) {
+            window.open(this.jitsiUrl, '_blank');
+        }
+
+        // Update button to show call is active
+        const container = document.getElementById('jitsi-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="vc-button-container">
+                    <button class="vc-join-btn vc-active" onclick="VideoChat.openJitsi()">
+                        📹 En appel
+                    </button>
+                    <p class="vc-hint">Fenêtre ouverte</p>
+                </div>
+            `;
         }
     },
 
@@ -134,41 +96,34 @@ const VideoChat = {
     },
 
     toggle() {
-        this.isCollapsed = !this.isCollapsed;
         const overlay = document.getElementById('video-chat-overlay');
         if (overlay) {
-            overlay.classList.toggle('vc-collapsed', this.isCollapsed);
-        }
-        const btn = document.getElementById('vc-collapse-btn');
-        if (btn) {
-            btn.textContent = this.isCollapsed ? '🗗' : '🗕';
+            overlay.classList.toggle('vc-minimized');
         }
     },
 
     stop() {
-        if (this.api) {
-            this.api.dispose();
-            this.api = null;
+        if (this.popupWindow && !this.popupWindow.closed) {
+            this.popupWindow.close();
         }
+        this.popupWindow = null;
         this.isActive = false;
         this.roomName = null;
+        this.jitsiUrl = null;
         this.hideOverlay();
     },
 
     // Compatibility methods (called by app.js)
     setupSignaling() {
-        // Not needed for Jitsi
         console.log('[VideoChat] Jitsi mode - signaling handled by Jitsi');
     },
 
     async startLocalMedia() {
-        // Not needed for Jitsi - it handles media itself
         console.log('[VideoChat] Jitsi mode - media handled by Jitsi');
         return true;
     },
 
     async createOffer() {
-        // Not needed for Jitsi
         console.log('[VideoChat] Jitsi mode - no offer needed');
     }
 };
