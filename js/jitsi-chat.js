@@ -61,40 +61,23 @@ const VideoChat = {
                     prejoinPageEnabled: false,
                     startWithAudioMuted: false,
                     startWithVideoMuted: false,
-                    disableDeepLinking: true,
-                    hideConferenceSubject: true,
-                    hideConferenceTimer: true,
-                    disableInviteFunctions: true,
-                    toolbarButtons: ['microphone', 'camera', 'tileview'],
-                    disableThirdPartyRequests: true,
-                    enableNoisyMicDetection: false,
-                    enableNoAudioDetection: false,
-                    startAudioOnly: false,
-                    filmStrip: {
-                        disableStageFilmstrip: true
-                    }
+                    disableDeepLinking: true
                 },
                 interfaceConfigOverwrite: {
-                    TOOLBAR_ALWAYS_VISIBLE: true,
-                    TOOLBAR_TIMEOUT: 10000,
-                    DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
-                    HIDE_INVITE_MORE_HEADER: true,
                     MOBILE_APP_PROMO: false,
                     SHOW_JITSI_WATERMARK: false,
-                    SHOW_WATERMARK_FOR_GUESTS: false,
-                    SHOW_BRAND_WATERMARK: false,
-                    SHOW_CHROME_EXTENSION_BANNER: false,
-                    DEFAULT_BACKGROUND: '#1a1a2e',
-                    DISABLE_PRESENCE_STATUS: true,
-                    FILM_STRIP_MAX_HEIGHT: 100,
-                    TILE_VIEW_MAX_COLUMNS: 2,
-                    VIDEO_QUALITY_LABEL_DISABLED: true
+                    SHOW_BRAND_WATERMARK: false
                 }
             });
 
             this.api.addListener('videoConferenceJoined', () => {
                 console.log('[VideoChat] Joined conference');
                 this.isActive = true;
+                // Force enable video after joining
+                this.api.executeCommand('toggleVideo');
+                setTimeout(() => {
+                    this.api.executeCommand('toggleVideo');
+                }, 500);
             });
 
             this.api.addListener('readyToClose', () => {
