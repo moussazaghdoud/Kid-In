@@ -73,42 +73,54 @@
                     <span class="player-name">Aissa</span>
                 </div>
             </div>
-            <div class="play-mode-buttons" id="play-mode-buttons" style="display:none;">
-                <button class="btn-primary" id="play-solo-btn">&#x1F3AE; Jouer seul</button>
-                <button class="btn-primary btn-multi" id="play-together-btn">&#x1F91D; Jouer ensemble</button>
+        </div>
+    </div>
+
+    <!-- ==================== ÉCRAN MODE DE JEU (APPEL / SOLO) ==================== -->
+    <div id="play-mode-screen" class="screen">
+        <div class="screen-content" style="text-align:center;">
+            <button class="btn-back" id="back-to-player-from-playmode">&#8592; Retour</button>
+            <div id="connection-indicator" class="connection-indicator disconnected" title="D&eacute;connect&eacute;"></div>
+            <h2 class="screen-title">Comment veux-tu jouer ?</h2>
+            <p class="screen-subtitle">Appelle ton ami(e) ou joue tout seul !</p>
+
+            <div class="call-target-card" id="call-target-card">
+                <div class="call-target-ring" id="call-target-ring">
+                    <img id="call-target-photo" src="images/izaac.png" alt="" class="call-target-photo">
+                </div>
+                <span class="call-target-name" id="call-target-name">Izaac</span>
+                <button class="btn-call" id="btn-call">&#x1F4DE; Appeler</button>
+            </div>
+
+            <div class="call-divider"><span>ou</span></div>
+
+            <button class="btn-solo-big" id="btn-solo">&#x1F3AE; Jouer tout seul</button>
+
+            <!-- Outgoing call overlay -->
+            <div class="call-overlay hidden" id="call-overlay">
+                <div class="call-overlay-content">
+                    <div class="call-pulse-ring">
+                        <div class="call-pulse-avatar" id="call-overlay-avatar">
+                            <img src="images/izaac.png" alt="" id="call-overlay-photo">
+                        </div>
+                    </div>
+                    <p class="call-overlay-status" id="call-overlay-status">&Ccedil;a sonne...</p>
+                    <button class="btn-call-cancel" id="btn-call-cancel">Annuler</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- ==================== ÉCRAN LOBBY MULTIJOUEUR ==================== -->
-    <div id="lobby-screen" class="screen">
-        <div class="screen-content" style="text-align:center;">
-            <button class="btn-back" id="back-to-player-select">&#8592; Retour</button>
-            <div id="connection-indicator" class="connection-indicator disconnected" title="Déconnecté"></div>
-            <h2 class="screen-title">Jouer ensemble !</h2>
-            <p class="screen-subtitle">Connecte-toi avec ton ami(e) !</p>
-
-            <div class="lobby-options" id="lobby-options">
-                <button class="btn-primary lobby-btn" id="create-room-btn">&#x1F3E0; Cr&eacute;er une partie</button>
-                <div class="lobby-divider"><span>ou</span></div>
-                <div class="join-room-section">
-                    <p class="join-label">Rejoindre une partie :</p>
-                    <div class="room-code-input-group">
-                        <input type="text" id="room-code-input" class="room-code-input" maxlength="3" placeholder="123" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
-                        <button class="btn-primary" id="join-room-btn">Rejoindre</button>
-                    </div>
-                </div>
+    <!-- ==================== OVERLAY APPEL ENTRANT ==================== -->
+    <div id="incoming-call-overlay" class="incoming-call-overlay hidden">
+        <div class="incoming-call-content">
+            <div class="incoming-call-ring">
+                <img id="incoming-caller-photo" src="images/aissa.png" alt="" class="incoming-caller-photo">
             </div>
-
-            <div class="lobby-waiting hidden" id="lobby-waiting">
-                <div class="room-code-display">
-                    <p class="room-code-label">Code de la salle :</p>
-                    <div class="room-code-value" id="room-code-display">------</div>
-                    <p class="room-code-hint">Donne ce code &agrave; ton ami(e) !</p>
-                </div>
-                <div class="lobby-players" id="lobby-players"></div>
-                    <p class="lobby-status" id="lobby-status">En attente d'un joueur...</p>
-                <button class="btn-primary hidden" id="lobby-start-btn">&#x1F680; Commencer !</button>
+            <h2 class="incoming-call-text" id="incoming-call-text">Aissa veut jouer avec toi !</h2>
+            <div class="incoming-call-buttons">
+                <button class="btn-accept-call" id="btn-accept-call">&#x2705; Accepter</button>
+                <button class="btn-decline-call" id="btn-decline-call">&#x274C; Refuser</button>
             </div>
         </div>
     </div>

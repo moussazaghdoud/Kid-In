@@ -2189,24 +2189,7 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
     text-shadow: 1px 1px 0 rgba(0,0,0,0.2);
 }
 
-.play-mode-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    flex-wrap: wrap;
-    margin-top: 10px;
-}
-
-.btn-multi {
-    background: linear-gradient(135deg, #51CF66, #4ECDC4);
-    box-shadow: var(--shadow-md), 0 4px 0 #3aaa4f;
-}
-
-.btn-multi:hover {
-    box-shadow: var(--shadow-lg), 0 7px 0 #3aaa4f;
-}
-
-/* ---------- Lobby Screen ---------- */
+/* ---------- Play Mode Screen (Call / Solo) ---------- */
 /* Connection Indicator */
 .connection-indicator {
     position: absolute;
@@ -2235,166 +2218,326 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
     50% { opacity: 0.5; }
 }
 
-.lobby-options {
-    max-width: 400px;
+/* Call target card */
+.call-target-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
     margin: 30px auto;
+    padding: 30px 40px;
+    background: rgba(255,255,255,0.12);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(10px);
+    max-width: 300px;
 }
 
-.lobby-btn {
-    width: 100%;
-    margin-bottom: 15px;
-}
-
-.lobby-divider {
+.call-target-ring {
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    padding: 5px;
     display: flex;
     align-items: center;
-    margin: 20px 0;
+    justify-content: center;
+    overflow: hidden;
+    animation: call-target-glow 3s ease-in-out infinite;
+}
+
+.call-target-ring.ring-blue {
+    background: linear-gradient(135deg, #339AF0, #6C63FF);
+    box-shadow: 0 0 25px rgba(51,154,240,0.5);
+}
+
+.call-target-ring.ring-pink {
+    background: linear-gradient(135deg, #FF6B9D, #FF6B6B);
+    box-shadow: 0 0 25px rgba(255,107,157,0.5);
+}
+
+@keyframes call-target-glow {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.call-target-photo {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #eee;
+}
+
+.call-target-name {
+    font-family: var(--font-title);
+    font-size: 1.6rem;
+    color: white;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.2);
+}
+
+.btn-call {
+    font-family: var(--font-title);
+    font-size: 1.3rem;
+    padding: 14px 45px;
+    border: none;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, #51CF66, #4ECDC4);
+    color: white;
+    cursor: pointer;
+    box-shadow: var(--shadow-md), 0 4px 0 #3aaa4f;
+    transition: all 0.2s ease;
+    position: relative;
+    top: 0;
+}
+
+.btn-call:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg), 0 7px 0 #3aaa4f;
+}
+
+.btn-call:active {
+    top: 3px;
+    box-shadow: var(--shadow-sm), 0 1px 0 #3aaa4f;
+}
+
+.call-divider {
+    display: flex;
+    align-items: center;
+    margin: 25px auto;
+    max-width: 300px;
     color: rgba(255,255,255,0.6);
     font-weight: 700;
 }
 
-.lobby-divider::before,
-.lobby-divider::after {
+.call-divider::before,
+.call-divider::after {
     content: '';
     flex: 1;
     height: 1px;
     background: rgba(255,255,255,0.3);
 }
 
-.lobby-divider span {
+.call-divider span {
     padding: 0 15px;
     font-size: 1.1rem;
 }
 
-.join-room-section {
-    text-align: center;
-}
-
-.join-label {
-    color: rgba(255,255,255,0.8);
-    font-weight: 600;
-    margin-bottom: 12px;
-}
-
-.room-code-input-group {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-}
-
-.room-code-input {
+.btn-solo-big {
     font-family: var(--font-title);
-    font-size: 1.5rem;
-    padding: 12px 20px;
+    font-size: 1.2rem;
+    padding: 14px 45px;
     border: 3px solid rgba(255,255,255,0.4);
-    border-radius: var(--radius-md);
-    background: rgba(255,255,255,0.15);
+    border-radius: var(--radius-xl);
+    background: rgba(255,255,255,0.1);
     color: white;
-    text-align: center;
-    width: 160px;
-    letter-spacing: 4px;
-    text-transform: uppercase;
-    outline: none;
-    transition: border-color 0.3s;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(5px);
 }
 
-.room-code-input::placeholder {
-    color: rgba(255,255,255,0.4);
+.btn-solo-big:hover {
+    background: rgba(255,255,255,0.25);
+    transform: translateY(-2px);
+    border-color: rgba(255,255,255,0.6);
 }
 
-.room-code-input:focus {
-    border-color: var(--color-yellow);
-}
-
-/* Lobby waiting area */
-.lobby-waiting {
-    max-width: 500px;
-    margin: 30px auto;
-}
-
-.room-code-display {
-    background: rgba(255,255,255,0.15);
-    border-radius: var(--radius-md);
-    padding: 20px;
-    margin-bottom: 25px;
-    backdrop-filter: blur(10px);
-}
-
-.room-code-label {
-    color: rgba(255,255,255,0.7);
-    font-weight: 600;
-    margin-bottom: 8px;
-}
-
-.room-code-value {
-    font-family: var(--font-title);
-    font-size: 3rem;
-    color: var(--color-yellow);
-    letter-spacing: 8px;
-    text-shadow: 0 0 15px rgba(255,230,109,0.4);
-}
-
-.room-code-hint {
-    color: rgba(255,255,255,0.6);
-    font-size: 0.9rem;
-    margin-top: 8px;
-}
-
-.lobby-players {
+/* Outgoing call overlay */
+.call-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(30, 20, 60, 0.92);
+    backdrop-filter: blur(15px);
     display: flex;
-    justify-content: center;
-    gap: 30px;
-    margin: 20px 0;
-}
-
-.lobby-player {
-    display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    z-index: 100;
+    border-radius: var(--radius-md);
 }
 
-.lobby-player-avatar {
-    width: 70px;
-    height: 70px;
+.call-overlay.hidden {
+    display: none;
+}
+
+.call-overlay-content {
+    text-align: center;
+}
+
+.call-pulse-ring {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    margin: 0 auto 25px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.call-pulse-ring::before,
+.call-pulse-ring::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 3px solid rgba(81, 207, 102, 0.5);
+    animation: call-pulse 2s ease-out infinite;
+}
+
+.call-pulse-ring::after {
+    animation-delay: 0.5s;
+}
+
+@keyframes call-pulse {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1.6); opacity: 0; }
+}
+
+.call-pulse-avatar {
+    width: 120px;
+    height: 120px;
     border-radius: 50%;
     overflow: hidden;
-    border: 3px solid var(--color-yellow);
+    border: 4px solid #51CF66;
+    z-index: 1;
 }
 
-.lobby-player-avatar img {
+.call-pulse-avatar img {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
 
-.lobby-player-name {
-    color: white;
-    font-weight: 700;
-    font-size: 1rem;
-}
-
-.lobby-video-preview {
-    margin: 15px auto;
-    width: 160px;
-    height: 120px;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    background: #222;
-}
-
-.lobby-video-preview video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transform: scaleX(-1);
-}
-
-.lobby-status {
-    color: rgba(255,255,255,0.7);
-    font-weight: 600;
-    margin: 15px 0;
+.call-overlay-status {
+    color: rgba(255,255,255,0.9);
+    font-family: var(--font-title);
+    font-size: 1.3rem;
+    margin-bottom: 25px;
     animation: pulse 2s ease-in-out infinite;
+}
+
+.btn-call-cancel {
+    font-family: var(--font-title);
+    font-size: 1.1rem;
+    padding: 12px 40px;
+    border: 2px solid rgba(255, 107, 107, 0.6);
+    border-radius: var(--radius-xl);
+    background: rgba(255, 107, 107, 0.2);
+    color: #FF6B6B;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-call-cancel:hover {
+    background: rgba(255, 107, 107, 0.4);
+}
+
+/* Incoming call overlay */
+.incoming-call-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(30, 20, 60, 0.95);
+    backdrop-filter: blur(20px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: incoming-fadein 0.3s ease;
+}
+
+.incoming-call-overlay.hidden {
+    display: none;
+}
+
+@keyframes incoming-fadein {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.incoming-call-content {
+    text-align: center;
+}
+
+.incoming-call-ring {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    margin: 0 auto 25px;
+    overflow: hidden;
+    border: 5px solid var(--color-yellow);
+    animation: incoming-ring 1s ease-in-out infinite;
+    box-shadow: 0 0 30px rgba(255,230,109,0.5);
+}
+
+@keyframes incoming-ring {
+    0%, 100% { transform: rotate(0deg) scale(1); }
+    15% { transform: rotate(-8deg) scale(1.05); }
+    30% { transform: rotate(8deg) scale(1.05); }
+    45% { transform: rotate(-5deg) scale(1.02); }
+    60% { transform: rotate(5deg) scale(1.02); }
+    75% { transform: rotate(0deg) scale(1); }
+}
+
+.incoming-caller-photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.incoming-call-text {
+    font-family: var(--font-title);
+    font-size: 1.5rem;
+    color: white;
+    margin-bottom: 30px;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.2);
+}
+
+.incoming-call-buttons {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-accept-call {
+    font-family: var(--font-title);
+    font-size: 1.2rem;
+    padding: 16px 40px;
+    border: none;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, #51CF66, #4ECDC4);
+    color: white;
+    cursor: pointer;
+    box-shadow: var(--shadow-md), 0 4px 0 #3aaa4f;
+    transition: all 0.2s ease;
+}
+
+.btn-accept-call:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg), 0 7px 0 #3aaa4f;
+}
+
+.btn-decline-call {
+    font-family: var(--font-title);
+    font-size: 1.2rem;
+    padding: 16px 40px;
+    border: none;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, #FF6B6B, #FF8A5C);
+    color: white;
+    cursor: pointer;
+    box-shadow: var(--shadow-md), 0 4px 0 #cc5555;
+    transition: all 0.2s ease;
+}
+
+.btn-decline-call:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg), 0 7px 0 #cc5555;
 }
 
 /* ---------- Video Chat Overlay ---------- */
@@ -2681,13 +2824,32 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
         font-size: 1.1rem;
     }
 
-    .play-mode-buttons {
-        flex-direction: column;
-        align-items: center;
+    .call-target-card {
+        padding: 20px 25px;
+        max-width: 260px;
     }
 
-    .room-code-value {
-        font-size: 2.2rem;
+    .call-target-ring {
+        width: 100px;
+        height: 100px;
+    }
+
+    .call-target-name {
+        font-size: 1.3rem;
+    }
+
+    .btn-call {
+        font-size: 1.1rem;
+        padding: 12px 35px;
+    }
+
+    .incoming-call-ring {
+        width: 130px;
+        height: 130px;
+    }
+
+    .incoming-call-text {
+        font-size: 1.2rem;
     }
 
     .audio-chat-overlay {
@@ -2719,10 +2881,6 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
         height: 28px;
     }
 
-    .lobby-video-preview {
-        width: 120px;
-        height: 90px;
-    }
 }
 
 @media (max-width: 400px) {
@@ -2735,8 +2893,13 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
         height: 75px;
     }
 
-    .room-code-input {
-        font-size: 1.2rem;
-        width: 130px;
+    .call-target-ring {
+        width: 85px;
+        height: 85px;
+    }
+
+    .incoming-call-buttons {
+        flex-direction: column;
+        align-items: center;
     }
 }

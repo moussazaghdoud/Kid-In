@@ -85,10 +85,20 @@ const App = {
             this.showScreen('player-select-screen');
         });
 
-        // Retour à l'accueil
+        // Retour depuis l'écran d'âge
         document.getElementById('back-to-welcome').addEventListener('click', () => {
             Sound.play('click');
-            this.showScreen('player-select-screen');
+            if (this.isMultiplayer) {
+                // In multiplayer: leave room, disconnect, go back to play-mode-screen
+                if (Multiplayer.roomCode) Multiplayer.leaveRoom();
+                Multiplayer.disconnect();
+                AudioChat.stop();
+                this.isMultiplayer = false;
+                this._updateMpUI();
+                this.showScreen('player-select-screen');
+            } else {
+                this.showScreen('player-select-screen');
+            }
         });
 
         // Sélection de l'âge
@@ -406,51 +416,90 @@ const App = {
         });
 
         document.querySelectorAll('.player-card').forEach(card => {
-            card.addEventListener('click', () => {
+            card.addEventListener('click', async () => {
                 Sound.play('click');
                 document.querySelectorAll('.player-card').forEach(c => c.classList.remove('selected'));
                 card.classList.add('selected');
                 this.playerAvatar = card.dataset.player;
                 this.playerName = card.dataset.name;
-                document.getElementById('play-mode-buttons').style.display = 'flex';
+
+                // Fill play-mode-screen with the OTHER player's info
+                const otherAvatar = this.playerAvatar === 'izaac' ? 'aissa' : 'izaac';
+                const otherName = this.playerAvatar === 'izaac' ? 'Aissa' : 'Izaac';
+
+                document.getElementById('call-target-photo').src = `images/${otherAvatar}.png`;
+                document.getElementById('call-target-photo').alt = otherName;
+                document.getElementById('call-target-name').textContent = otherName;
+
+                const ring = document.getElementById('call-target-ring');
+                ring.className = 'call-target-ring ' + (otherAvatar === 'izaac' ? 'ring-blue' : 'ring-pink');
+
+                // Also set outgoing call overlay photo
+                document.getElementById('call-overlay-photo').src = `images/${otherAvatar}.png`;
+
+                // Hide call overlay if previously shown
+                document.getElementById('call-overlay').classList.add('hidden');
+
+                this.showScreen('play-mode-screen');
+
+                // Connect to WebSocket and register online (to receive incoming calls)
+                this._updateConnectionIndicator(false);
+                try {
+                    await Multiplayer.connect();
+                    this._updateConnectionIndicator(true);
+                    Multiplayer.registerOnline(this.playerAvatar, this.playerName);
+                } catch (e) {
+                    this._updateConnectionIndicator(false);
+                }
             });
         });
 
         // Play solo
-        document.getElementById('play-solo-btn').addEventListener('click', () => {
+        document.getElementById('btn-solo').addEventListener('click', () => {
             Sound.play('click');
             this.isMultiplayer = false;
+            Multiplayer.disconnect();
             this.showScreen('age-screen');
         });
 
-        // Play together
-        document.getElementById('play-together-btn').addEventListener('click', async () => {
+        // Call button
+        document.getElementById('btn-call').addEventListener('click', () => {
             Sound.play('click');
-            this.isMultiplayer = true;
-            this._updateMpUI();
-            this.showScreen('lobby-screen');
-            document.getElementById('lobby-status').textContent = 'Connexion au serveur...';
-            this._updateConnectionIndicator(false);
-            try {
-                await Multiplayer.connect();
-                document.getElementById('lobby-status').textContent = '';
-                this._updateConnectionIndicator(true);
-            } catch (e) {
-                document.getElementById('lobby-status').textContent = 'Erreur de connexion. Réessaye !';
-                this._updateConnectionIndicator(false);
-            }
+            const targetCharacter = this.playerAvatar === 'izaac' ? 'aissa' : 'izaac';
+            Multiplayer.initiateCall(targetCharacter);
+            // Show outgoing call overlay
+            document.getElementById('call-overlay').classList.remove('hidden');
+            document.getElementById('call-overlay-status').textContent = 'Appel en cours...';
         });
 
-        // Lobby back
-        document.getElementById('back-to-player-select').addEventListener('click', () => {
+        // Cancel call
+        document.getElementById('btn-call-cancel').addEventListener('click', () => {
             Sound.play('click');
-            if (Multiplayer.roomCode) Multiplayer.leaveRoom();
+            Multiplayer.cancelCall();
+            document.getElementById('call-overlay').classList.add('hidden');
+        });
+
+        // Accept incoming call
+        document.getElementById('btn-accept-call').addEventListener('click', () => {
+            Sound.play('click');
+            Multiplayer.acceptCall();
+            document.getElementById('incoming-call-overlay').classList.add('hidden');
+        });
+
+        // Decline incoming call
+        document.getElementById('btn-decline-call').addEventListener('click', () => {
+            Sound.play('click');
+            Multiplayer.declineCall();
+            document.getElementById('incoming-call-overlay').classList.add('hidden');
+        });
+
+        // Back from play-mode-screen
+        document.getElementById('back-to-player-from-playmode').addEventListener('click', () => {
+            Sound.play('click');
+            Multiplayer.cancelCall();
             Multiplayer.disconnect();
-            AudioChat.stop();
-            this.isMultiplayer = false;
-            this._updateMpUI();
-            document.getElementById('lobby-options').classList.remove('hidden');
-            document.getElementById('lobby-waiting').classList.add('hidden');
+            document.getElementById('call-overlay').classList.add('hidden');
+            document.getElementById('incoming-call-overlay').classList.add('hidden');
             this.showScreen('player-select-screen');
         });
 
@@ -463,53 +512,6 @@ const App = {
             this.isMultiplayer = false;
             this._updateMpUI();
             this.showScreen('player-select-screen');
-        });
-
-        // Create room
-        document.getElementById('create-room-btn').addEventListener('click', async () => {
-            Sound.play('click');
-            if (!Multiplayer.isReady()) {
-                document.getElementById('lobby-status').textContent = 'Connexion en cours...';
-                try {
-                    await Multiplayer.connect();
-                    this._updateConnectionIndicator(true);
-                } catch (e) {
-                    document.getElementById('lobby-status').textContent = 'Impossible de se connecter';
-                    return;
-                }
-            }
-            document.getElementById('lobby-status').textContent = 'Création de la salle...';
-            Multiplayer.createRoom(this.playerName, this.playerAvatar);
-        });
-
-        // Join room
-        document.getElementById('join-room-btn').addEventListener('click', async () => {
-            Sound.play('click');
-            const code = document.getElementById('room-code-input').value.trim().toUpperCase();
-            if (code.length !== 3) {
-                document.getElementById('lobby-status').textContent = 'Entre un code à 3 chiffres';
-                return;
-            }
-            if (!Multiplayer.isReady()) {
-                document.getElementById('lobby-status').textContent = 'Connexion en cours...';
-                try {
-                    await Multiplayer.connect();
-                    this._updateConnectionIndicator(true);
-                } catch (e) {
-                    document.getElementById('lobby-status').textContent = 'Impossible de se connecter';
-                    return;
-                }
-            }
-            console.log('[App] Joining room with code:', code);
-            document.getElementById('lobby-status').textContent = 'Recherche de la salle...';
-            Multiplayer.joinRoom(code, this.playerName, this.playerAvatar);
-        });
-
-        // Lobby start game (host picks)
-        document.getElementById('lobby-start-btn').addEventListener('click', () => {
-            Sound.play('click');
-            // Go to age selection, then menu
-            this.showScreen('age-screen');
         });
 
         // Disconnect overlay
@@ -529,77 +531,82 @@ const App = {
         });
 
         // Setup multiplayer callbacks
-        Multiplayer.onRoomCreated = (roomCode) => {
-            document.getElementById('lobby-options').classList.add('hidden');
-            document.getElementById('lobby-waiting').classList.remove('hidden');
-            document.getElementById('room-code-display').textContent = roomCode;
-            document.getElementById('lobby-status').textContent = 'En attente d\'un joueur...';
-            document.getElementById('lobby-start-btn').classList.add('hidden');
-
-            // Start local video preview
-            this._startLobbyVideo();
-        };
-
-        Multiplayer.onRoomJoined = async (players) => {
-            document.getElementById('lobby-options').classList.add('hidden');
-            document.getElementById('lobby-waiting').classList.remove('hidden');
-            if (Multiplayer.roomCode) {
-                document.getElementById('room-code-display').textContent = Multiplayer.roomCode;
-            }
-
-            // Show players
-            const playersEl = document.getElementById('lobby-players');
-            playersEl.innerHTML = '';
-            players.forEach(p => {
-                const div = document.createElement('div');
-                div.className = 'lobby-player';
-                div.innerHTML = `
-                    <div class="lobby-player-avatar">
-                        <img src="images/${p.avatar}.png" alt="${p.name}">
-                    </div>
-                    <span class="lobby-player-name">${p.name}</span>
-                `;
-                playersEl.appendChild(div);
-            });
-
-            if (players.length >= 2) {
-                document.getElementById('lobby-status').textContent = 'Tout le monde est là !';
-
-                // Start audio chat between the two players
-                console.log('[App] Starting audio chat...');
-                AudioChat.start(Multiplayer.isHost);
-
-                if (Multiplayer.isHost) {
-                    document.getElementById('lobby-start-btn').classList.remove('hidden');
-                } else {
-                    document.getElementById('lobby-status').textContent = 'L\'hôte va choisir le jeu...';
-                }
-            }
-        };
-
         Multiplayer.onRoomError = (message) => {
-            document.getElementById('lobby-status').textContent = message;
-            // Show lobby options again so user can retry
-            document.getElementById('lobby-options').classList.remove('hidden');
-            document.getElementById('lobby-waiting').classList.add('hidden');
+            console.log('[App] Room error:', message);
         };
 
         // Connection state change handler
         Multiplayer.onConnectionChange = (connected) => {
             this._updateConnectionIndicator(connected);
-            if (!connected && this.currentScreen === 'lobby-screen') {
-                document.getElementById('lobby-status').textContent = 'Connexion perdue. Reconnexion...';
-            }
         };
 
         Multiplayer.onPlayerLeft = (msg) => {
             AudioChat.stop();
             if (msg.disconnected || this.currentScreen === 'game-screen') {
                 document.getElementById('disconnect-overlay').classList.remove('hidden');
-            } else {
-                document.getElementById('lobby-status').textContent = 'L\'autre joueur est parti...';
-                document.getElementById('lobby-start-btn').classList.add('hidden');
             }
+        };
+
+        // Call system callbacks
+        Multiplayer.onCallWaiting = (msg) => {
+            document.getElementById('call-overlay-status').textContent = 'En attente...';
+        };
+
+        Multiplayer.onCallRinging = (msg) => {
+            document.getElementById('call-overlay-status').textContent = '\u00C7a sonne...';
+        };
+
+        Multiplayer.onCallIncoming = (msg) => {
+            // Show incoming call overlay
+            document.getElementById('incoming-caller-photo').src = `images/${msg.callerCharacter}.png`;
+            document.getElementById('incoming-call-text').textContent = `${msg.callerName} veut jouer avec toi !`;
+            document.getElementById('incoming-call-overlay').classList.remove('hidden');
+        };
+
+        Multiplayer.onCallMatched = (msg) => {
+            // Hide overlays
+            document.getElementById('call-overlay').classList.add('hidden');
+            document.getElementById('incoming-call-overlay').classList.add('hidden');
+
+            // Set multiplayer mode
+            this.isMultiplayer = true;
+            this._updateMpUI();
+
+            // Wait a tick for room:joined to arrive with player list
+            this._callMatchedRoom = msg.roomCode;
+        };
+
+        Multiplayer.onRoomJoined = (players) => {
+            console.log('[App] Room joined with players:', players.map(p => p.name).join(', '));
+
+            // If this was triggered by a call match, start audio and navigate
+            if (this._callMatchedRoom) {
+                this._callMatchedRoom = null;
+
+                // Determine host (first player in the room)
+                Multiplayer.isHost = players.length > 0 && players[0].id === Multiplayer.playerId;
+
+                // Start audio chat
+                console.log('[App] Call matched, starting audio...');
+                AudioChat.start(Multiplayer.isHost);
+
+                // Go to age screen
+                this.showScreen('age-screen');
+            }
+        };
+
+        Multiplayer.onCallDeclined = (msg) => {
+            document.getElementById('call-overlay').classList.add('hidden');
+            document.getElementById('call-overlay-status').textContent = '';
+        };
+
+        Multiplayer.onCallCancelled = (msg) => {
+            document.getElementById('incoming-call-overlay').classList.add('hidden');
+        };
+
+        Multiplayer.onCallTimeout = (msg) => {
+            document.getElementById('call-overlay').classList.add('hidden');
+            document.getElementById('call-overlay-status').textContent = '';
         };
 
         // WebRTC signaling callbacks
@@ -620,12 +627,6 @@ const App = {
             document.getElementById('selected-age-display').textContent = this.age;
             this.startGameNow(msg.game, msg.seed);
         };
-    },
-
-    async _startLobbyVideo() {
-        // Audio chat starts when both players join
-        console.log('[App] Lobby - audio will start when partner joins');
-        return true;
     },
 
     _updateMpUI() {

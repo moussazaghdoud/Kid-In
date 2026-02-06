@@ -14,6 +14,48 @@ app.use(express.static(path.join(__dirname, '..')));
 // ==================== ROOM MANAGEMENT ====================
 const rooms = new Map();
 
+// ==================== CALL SYSTEM ====================
+const onlinePlayers = new Map();  // character -> { ws, playerName, avatar }
+const pendingCalls = new Map();   // callerId -> { callerWs, targetCharacter, timeout }
+
+function cleanupCall(callerPlayerId) {
+    const call = pendingCalls.get(callerPlayerId);
+    if (call) {
+        clearTimeout(call.timeout);
+        pendingCalls.delete(callerPlayerId);
+    }
+}
+
+function removeOnlinePlayer(ws) {
+    for (const [character, data] of onlinePlayers.entries()) {
+        if (data.ws === ws) {
+            onlinePlayers.delete(character);
+            console.log(`[Server] ${character} went offline`);
+            break;
+        }
+    }
+    // Cancel any pending calls involving this player
+    for (const [callerId, call] of pendingCalls.entries()) {
+        if (call.callerWs === ws) {
+            // Caller disconnected - notify target
+            const targetData = onlinePlayers.get(call.targetCharacter);
+            if (targetData) {
+                sendTo(targetData.ws, { type: 'call:cancelled' });
+            }
+            cleanupCall(callerId);
+        }
+    }
+    // Check if someone was calling this player
+    for (const [callerId, call] of pendingCalls.entries()) {
+        const targetData = onlinePlayers.get(call.targetCharacter);
+        if (targetData && targetData.ws === ws) {
+            // Target disconnected - notify caller
+            sendTo(call.callerWs, { type: 'call:cancelled' });
+            cleanupCall(callerId);
+        }
+    }
+}
+
 function generateRoomCode() {
     // Simple 3-digit code (000-999)
     const code = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
@@ -218,6 +260,164 @@ wss.on('connection', (ws) => {
                 break;
             }
 
+            // ---- Call System ----
+            case 'call:register': {
+                const character = msg.character; // 'izaac' or 'aissa'
+                ws.playerName = msg.playerName || character;
+                ws.playerAvatar = character;
+                onlinePlayers.set(character, { ws, playerName: ws.playerName, avatar: character });
+                console.log(`[Server] ${character} (${ws.playerName}) registered online`);
+
+                // Check if someone is waiting to call this character
+                for (const [callerId, call] of pendingCalls.entries()) {
+                    if (call.targetCharacter === character) {
+                        // Ring the newly registered player
+                        console.log(`[Server] ${call.callerName} was waiting - now ringing ${character}`);
+                        sendTo(call.callerWs, { type: 'call:ringing', targetCharacter: character });
+                        sendTo(ws, {
+                            type: 'call:incoming',
+                            callerCharacter: call.callerCharacter,
+                            callerName: call.callerName
+                        });
+                        break;
+                    }
+                }
+                break;
+            }
+
+            case 'call:initiate': {
+                const targetCharacter = msg.targetCharacter; // 'izaac' or 'aissa'
+                const targetData = onlinePlayers.get(targetCharacter);
+
+                // Clean up any existing call from this caller
+                cleanupCall(ws.playerId);
+
+                if (!targetData || targetData.ws.readyState !== 1) {
+                    // Target not online - wait for them
+                    console.log(`[Server] ${ws.playerName} calling ${targetCharacter} (not online yet - waiting)`);
+                    const timeout = setTimeout(() => {
+                        sendTo(ws, { type: 'call:timeout' });
+                        pendingCalls.delete(ws.playerId);
+                    }, 60000);
+
+                    pendingCalls.set(ws.playerId, {
+                        callerWs: ws,
+                        callerCharacter: ws.playerAvatar,
+                        callerName: ws.playerName,
+                        targetCharacter,
+                        timeout
+                    });
+                    sendTo(ws, { type: 'call:waiting', targetCharacter });
+                } else {
+                    // Target is online - ring them
+                    console.log(`[Server] ${ws.playerName} calling ${targetCharacter} (online - ringing)`);
+                    const timeout = setTimeout(() => {
+                        sendTo(ws, { type: 'call:timeout' });
+                        sendTo(targetData.ws, { type: 'call:cancelled' });
+                        pendingCalls.delete(ws.playerId);
+                    }, 60000);
+
+                    pendingCalls.set(ws.playerId, {
+                        callerWs: ws,
+                        callerCharacter: ws.playerAvatar,
+                        callerName: ws.playerName,
+                        targetCharacter,
+                        timeout
+                    });
+                    sendTo(ws, { type: 'call:ringing', targetCharacter });
+                    sendTo(targetData.ws, {
+                        type: 'call:incoming',
+                        callerCharacter: ws.playerAvatar,
+                        callerName: ws.playerName
+                    });
+                }
+                break;
+            }
+
+            case 'call:cancel': {
+                const call = pendingCalls.get(ws.playerId);
+                if (call) {
+                    const targetData = onlinePlayers.get(call.targetCharacter);
+                    if (targetData) {
+                        sendTo(targetData.ws, { type: 'call:cancelled' });
+                    }
+                    cleanupCall(ws.playerId);
+                    console.log(`[Server] ${ws.playerName} cancelled call`);
+                }
+                break;
+            }
+
+            case 'call:accept': {
+                // Find the pending call targeting this player's character
+                let foundCallerId = null;
+                for (const [callerId, call] of pendingCalls.entries()) {
+                    if (call.targetCharacter === ws.playerAvatar) {
+                        foundCallerId = callerId;
+                        break;
+                    }
+                }
+
+                if (!foundCallerId) {
+                    console.log(`[Server] No pending call found for ${ws.playerAvatar}`);
+                    break;
+                }
+
+                const call = pendingCalls.get(foundCallerId);
+                cleanupCall(foundCallerId);
+
+                // Create a room for the matched players
+                let code = generateRoomCode();
+                while (rooms.has(code)) code = generateRoomCode();
+
+                const callerWs = call.callerWs;
+                callerWs.roomCode = code;
+                ws.roomCode = code;
+
+                rooms.set(code, {
+                    code,
+                    host: callerWs.playerId,
+                    players: [
+                        {
+                            id: callerWs.playerId,
+                            name: call.callerName,
+                            avatar: call.callerCharacter,
+                            ws: callerWs,
+                            score: 0
+                        },
+                        {
+                            id: ws.playerId,
+                            name: ws.playerName,
+                            avatar: ws.playerAvatar,
+                            ws,
+                            score: 0
+                        }
+                    ],
+                    gameState: null,
+                    lockedActions: new Set()
+                });
+
+                console.log(`[Server] Call matched! Room ${code} created for ${call.callerName} and ${ws.playerName}`);
+
+                // Notify both players
+                sendTo(callerWs, { type: 'call:matched', roomCode: code });
+                sendTo(ws, { type: 'call:matched', roomCode: code });
+                broadcastRoomState(code);
+                break;
+            }
+
+            case 'call:decline': {
+                // Find the pending call targeting this player's character
+                for (const [callerId, call] of pendingCalls.entries()) {
+                    if (call.targetCharacter === ws.playerAvatar) {
+                        sendTo(call.callerWs, { type: 'call:declined', targetCharacter: ws.playerAvatar });
+                        cleanupCall(callerId);
+                        console.log(`[Server] ${ws.playerName} declined call from ${call.callerName}`);
+                        break;
+                    }
+                }
+                break;
+            }
+
             // ---- Game Management ----
             case 'game:select': {
                 const room = rooms.get(ws.roomCode);
@@ -417,11 +617,13 @@ wss.on('connection', (ws) => {
 
     ws.on('close', (code, reason) => {
         console.log(`[Server] Connection closed: ${ws.playerId}, code: ${code}`);
+        removeOnlinePlayer(ws);
         removePlayerFromRoom(ws);
     });
 
     ws.on('error', (err) => {
         console.error(`[Server] Connection error: ${ws.playerId}`, err.message);
+        removeOnlinePlayer(ws);
         removePlayerFromRoom(ws);
     });
 });

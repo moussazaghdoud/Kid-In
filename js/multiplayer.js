@@ -29,6 +29,13 @@ const Multiplayer = {
     onRtcAnswer: null,
     onRtcIce: null,
     onConnectionChange: null,
+    onCallRinging: null,
+    onCallWaiting: null,
+    onCallIncoming: null,
+    onCallMatched: null,
+    onCallDeclined: null,
+    onCallCancelled: null,
+    onCallTimeout: null,
 
     connect() {
         if (this.connected || this.connecting) {
@@ -210,6 +217,37 @@ const Multiplayer = {
                 if (this.onGameEnd) this.onGameEnd(msg);
                 break;
 
+            case 'call:ringing':
+                if (this.onCallRinging) this.onCallRinging(msg);
+                break;
+
+            case 'call:waiting':
+                if (this.onCallWaiting) this.onCallWaiting(msg);
+                break;
+
+            case 'call:incoming':
+                if (this.onCallIncoming) this.onCallIncoming(msg);
+                break;
+
+            case 'call:matched':
+                this.roomCode = msg.roomCode;
+                this._lastRoomCode = msg.roomCode;
+                console.log('[Multiplayer] Call matched, room:', msg.roomCode);
+                if (this.onCallMatched) this.onCallMatched(msg);
+                break;
+
+            case 'call:declined':
+                if (this.onCallDeclined) this.onCallDeclined(msg);
+                break;
+
+            case 'call:cancelled':
+                if (this.onCallCancelled) this.onCallCancelled(msg);
+                break;
+
+            case 'call:timeout':
+                if (this.onCallTimeout) this.onCallTimeout(msg);
+                break;
+
             case 'rtc:offer':
                 if (this.onRtcOffer) this.onRtcOffer(msg);
                 break;
@@ -228,6 +266,28 @@ const Multiplayer = {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(msg));
         }
+    },
+
+    registerOnline(character, playerName) {
+        this._lastPlayerName = playerName;
+        this._lastAvatar = character;
+        this.send({ type: 'call:register', character, playerName });
+    },
+
+    initiateCall(targetCharacter) {
+        this.send({ type: 'call:initiate', targetCharacter });
+    },
+
+    cancelCall() {
+        this.send({ type: 'call:cancel' });
+    },
+
+    acceptCall() {
+        this.send({ type: 'call:accept' });
+    },
+
+    declineCall() {
+        this.send({ type: 'call:decline' });
     },
 
     createRoom(playerName, avatar) {
