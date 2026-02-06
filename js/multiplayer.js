@@ -12,7 +12,12 @@ const Multiplayer = {
     connected: false,
     connecting: false,
     reconnectAttempts: 0,
-    maxReconnectAttempts: 5,
+    maxReconnectAttempts: 15,
+    _keepAliveTimer: null,
+    _lastRoomCode: null,   // Remember room for rejoin after reconnect
+    _lastPlayerName: null,
+    _lastAvatar: null,
+    _intentionalDisconnect: false,
     onRoomCreated: null,
     onRoomJoined: null,
     onRoomError: null,
@@ -30,6 +35,7 @@ const Multiplayer = {
             return Promise.resolve();
         }
         this.connecting = true;
+        this._intentionalDisconnect = false;
 
         return new Promise((resolve, reject) => {
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -58,6 +64,7 @@ const Multiplayer = {
                 this.reconnectAttempts = 0;
                 console.log('[Multiplayer] Connected to server');
                 if (this.onConnectionChange) this.onConnectionChange(true);
+                this._startKeepAlive();
                 resolve();
             };
 
@@ -72,22 +79,46 @@ const Multiplayer = {
                 clearTimeout(connectionTimeout);
                 this.connected = false;
                 this.connecting = false;
+                this._stopKeepAlive();
                 console.log('[Multiplayer] Disconnected, code:', event.code);
                 if (this.onConnectionChange) this.onConnectionChange(false);
 
+                // Don't auto-reconnect if user intentionally disconnected
+                if (this._intentionalDisconnect) return;
+
+                // Remember room info for rejoin (don't clear it!)
                 if (this.roomCode) {
-                    const wasInRoom = this.roomCode;
-                    this.roomCode = null;
-                    if (this.onPlayerLeft) {
-                        this.onPlayerLeft({ disconnected: true, wasInRoom });
-                    }
+                    this._lastRoomCode = this.roomCode;
                 }
 
-                // Auto-reconnect if unexpected disconnect
+                // Auto-reconnect with exponential backoff
                 if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
                     this.reconnectAttempts++;
-                    console.log(`[Multiplayer] Reconnecting (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-                    setTimeout(() => this.connect().catch(() => {}), 2000);
+                    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts - 1), 15000);
+                    console.log(`[Multiplayer] Reconnecting in ${Math.round(delay)}ms (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+                    this.connected = false;
+                    this.connecting = false;
+                    setTimeout(() => {
+                        this.connect().then(() => {
+                            // After reconnect, try to rejoin the room
+                            if (this._lastRoomCode && this._lastPlayerName) {
+                                console.log('[Multiplayer] Attempting to rejoin room:', this._lastRoomCode);
+                                this.send({
+                                    type: 'room:rejoin',
+                                    roomCode: this._lastRoomCode,
+                                    playerName: this._lastPlayerName,
+                                    avatar: this._lastAvatar
+                                });
+                            }
+                        }).catch(() => {});
+                    }, delay);
+                } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                    // All retries exhausted - notify player
+                    if (this._lastRoomCode && this.onPlayerLeft) {
+                        this.onPlayerLeft({ disconnected: true, wasInRoom: this._lastRoomCode });
+                    }
+                    this.roomCode = null;
+                    this._lastRoomCode = null;
                 }
             };
 
@@ -98,15 +129,38 @@ const Multiplayer = {
         });
     },
 
+    // Client-side keep-alive ping every 10s
+    _startKeepAlive() {
+        this._stopKeepAlive();
+        this._keepAliveTimer = setInterval(() => {
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.send({ type: 'ping' });
+            }
+        }, 10000);
+    },
+
+    _stopKeepAlive() {
+        if (this._keepAliveTimer) {
+            clearInterval(this._keepAliveTimer);
+            this._keepAliveTimer = null;
+        }
+    },
+
     _handleMessage(msg) {
         switch (msg.type) {
             case 'connected':
                 console.log('[Multiplayer] Server confirmed connection, id:', msg.playerId);
+                this.playerId = msg.playerId;
+                break;
+
+            case 'pong':
+                // Keep-alive response, connection is healthy
                 break;
 
             case 'room:created':
                 this.playerId = msg.playerId;
                 this.roomCode = msg.roomCode;
+                this._lastRoomCode = msg.roomCode;
                 this.isHost = true;
                 console.log('[Multiplayer] Room created:', msg.roomCode);
                 if (this.onRoomCreated) this.onRoomCreated(msg.roomCode);
@@ -115,13 +169,22 @@ const Multiplayer = {
             case 'room:joined-ack':
                 this.playerId = msg.playerId;
                 this.roomCode = msg.roomCode;
+                this._lastRoomCode = msg.roomCode;
                 this.isHost = false;
                 console.log('[Multiplayer] Joined room:', msg.roomCode);
+                break;
+
+            case 'room:rejoined':
+                this.playerId = msg.playerId;
+                this.roomCode = msg.roomCode;
+                this._lastRoomCode = msg.roomCode;
+                console.log('[Multiplayer] Rejoined room:', msg.roomCode);
                 break;
 
             case 'room:joined':
                 this.players = msg.players;
                 this.roomCode = msg.roomCode;
+                this._lastRoomCode = msg.roomCode;
                 console.log('[Multiplayer] Players in room:', this.players.map(p => p.name).join(', '));
                 if (this.onRoomJoined) this.onRoomJoined(msg.players);
                 break;
@@ -168,11 +231,15 @@ const Multiplayer = {
     },
 
     createRoom(playerName, avatar) {
+        this._lastPlayerName = playerName;
+        this._lastAvatar = avatar;
         this.send({ type: 'room:create', playerName, avatar });
     },
 
     joinRoom(roomCode, playerName, avatar) {
         const code = roomCode.trim();
+        this._lastPlayerName = playerName;
+        this._lastAvatar = avatar;
         console.log('[Multiplayer] Sending join request for room:', code);
         this.send({ type: 'room:join', roomCode: code, playerName, avatar });
     },
@@ -180,6 +247,7 @@ const Multiplayer = {
     leaveRoom() {
         this.send({ type: 'room:leave' });
         this.roomCode = null;
+        this._lastRoomCode = null;
         this.players = [];
         this.isHost = false;
     },
@@ -205,7 +273,8 @@ const Multiplayer = {
     },
 
     disconnect() {
-        this.reconnectAttempts = this.maxReconnectAttempts; // Prevent auto-reconnect
+        this._intentionalDisconnect = true;
+        this._stopKeepAlive();
         if (this.ws) {
             this.ws.close(1000, 'User disconnect');
             this.ws = null;
@@ -213,15 +282,38 @@ const Multiplayer = {
         this.connected = false;
         this.connecting = false;
         this.roomCode = null;
+        this._lastRoomCode = null;
         this.players = [];
         this.isHost = false;
         this.playerId = null;
+        this.reconnectAttempts = 0;
     },
 
     isReady() {
         return this.connected && this.ws && this.ws.readyState === WebSocket.OPEN;
     }
 };
+
+// Handle page visibility changes (mobile background/foreground)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        // Page came back to foreground - check if we need to reconnect
+        if (Multiplayer._lastRoomCode && !Multiplayer.connected && !Multiplayer.connecting) {
+            console.log('[Multiplayer] Page visible again, reconnecting...');
+            Multiplayer.reconnectAttempts = 0;
+            Multiplayer.connect().then(() => {
+                if (Multiplayer._lastRoomCode && Multiplayer._lastPlayerName) {
+                    Multiplayer.send({
+                        type: 'room:rejoin',
+                        roomCode: Multiplayer._lastRoomCode,
+                        playerName: Multiplayer._lastPlayerName,
+                        avatar: Multiplayer._lastAvatar
+                    });
+                }
+            }).catch(() => {});
+        }
+    }
+});
 
 
 /* ============================================

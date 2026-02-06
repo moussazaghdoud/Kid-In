@@ -84,7 +84,7 @@ const AudioChat = {
             }
         };
 
-        // Connection state monitoring
+        // Connection state monitoring with auto-recovery
         this.pc.onconnectionstatechange = () => {
             if (!this.pc) return;
             console.log('[AudioChat] Connection state:', this.pc.connectionState);
@@ -94,9 +94,22 @@ const AudioChat = {
                     this._showUI('connected');
                     break;
                 case 'disconnected':
-                case 'failed':
-                    this._showUI('disconnected');
                     this.isConnected = false;
+                    this._showUI('connecting');
+                    // WebRTC often recovers from 'disconnected' on its own
+                    // Wait 5s then try ICE restart if still disconnected
+                    setTimeout(() => {
+                        if (this.pc && this.pc.connectionState === 'disconnected') {
+                            console.log('[AudioChat] Still disconnected, attempting ICE restart');
+                            this._restartIce();
+                        }
+                    }, 5000);
+                    break;
+                case 'failed':
+                    this.isConnected = false;
+                    this._showUI('connecting');
+                    console.log('[AudioChat] Connection failed, attempting ICE restart');
+                    this._restartIce();
                     break;
             }
         };
@@ -104,6 +117,11 @@ const AudioChat = {
         this.pc.oniceconnectionstatechange = () => {
             if (!this.pc) return;
             console.log('[AudioChat] ICE state:', this.pc.iceConnectionState);
+            // Also handle ICE-level failures
+            if (this.pc.iceConnectionState === 'failed') {
+                console.log('[AudioChat] ICE failed, attempting restart');
+                this._restartIce();
+            }
         };
 
         // Peer connection is ready - resolve the promise
@@ -186,6 +204,21 @@ const AudioChat = {
             await this.pc.addIceCandidate(new RTCIceCandidate(data.candidate));
         } catch (err) {
             console.error('[AudioChat] Failed to add ICE candidate:', err);
+        }
+    },
+
+    async _restartIce() {
+        if (!this.pc || !this.isActive) return;
+        try {
+            // Only the host initiates the ICE restart
+            if (this.isHost) {
+                const offer = await this.pc.createOffer({ iceRestart: true });
+                await this.pc.setLocalDescription(offer);
+                console.log('[AudioChat] Sending ICE restart offer');
+                Multiplayer.sendRtc('rtc:offer', { sdp: offer });
+            }
+        } catch (err) {
+            console.error('[AudioChat] ICE restart failed:', err);
         }
     },
 

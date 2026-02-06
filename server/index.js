@@ -76,13 +76,17 @@ function removePlayerFromRoom(ws) {
 wss.on('connection', (ws) => {
     ws.playerId = uuidv4();
     ws.isAlive = true;
+    ws.missedPings = 0;
 
     console.log(`[Server] New connection: ${ws.playerId}`);
 
     // Send immediate confirmation to client
     sendTo(ws, { type: 'connected', playerId: ws.playerId });
 
-    ws.on('pong', () => { ws.isAlive = true; });
+    ws.on('pong', () => {
+        ws.isAlive = true;
+        ws.missedPings = 0;
+    });
 
     ws.on('message', (raw) => {
         let msg;
@@ -92,7 +96,17 @@ wss.on('connection', (ws) => {
             return;
         }
 
+        // Any message from client proves it's alive
+        ws.isAlive = true;
+        ws.missedPings = 0;
+
         switch (msg.type) {
+            // ---- Keep-alive ----
+            case 'ping': {
+                sendTo(ws, { type: 'pong' });
+                break;
+            }
+
             // ---- Room Management ----
             case 'room:create': {
                 let code = generateRoomCode();
@@ -154,6 +168,47 @@ wss.on('connection', (ws) => {
                 console.log(`[Server] Player ${ws.playerName} joined room ${roomCode}. Players: ${room.players.length}`);
                 sendTo(ws, { type: 'room:joined-ack', playerId: ws.playerId, roomCode: roomCode });
                 broadcastRoomState(roomCode);
+                break;
+            }
+
+            // Rejoin after reconnection - swap the WebSocket reference
+            case 'room:rejoin': {
+                const roomCode = String(msg.roomCode).trim();
+                const room = rooms.get(roomCode);
+                if (!room) {
+                    sendTo(ws, { type: 'room:error', message: 'Salle introuvable' });
+                    break;
+                }
+
+                // Find existing player slot by name (since playerId changed on reconnect)
+                const existing = room.players.find(p => p.name === msg.playerName);
+                if (existing) {
+                    // Swap WebSocket reference to the new connection
+                    existing.ws = ws;
+                    existing.id = ws.playerId;
+                    ws.playerName = msg.playerName;
+                    ws.playerAvatar = msg.avatar || existing.avatar;
+                    ws.roomCode = roomCode;
+                    console.log(`[Server] Player ${msg.playerName} rejoined room ${roomCode}`);
+                    sendTo(ws, { type: 'room:rejoined', playerId: ws.playerId, roomCode });
+                    broadcastRoomState(roomCode);
+                } else if (room.players.length < 2) {
+                    // Player slot was already cleaned up, join fresh
+                    ws.playerName = msg.playerName || 'Joueur';
+                    ws.playerAvatar = msg.avatar || 'aissa';
+                    ws.roomCode = roomCode;
+                    room.players.push({
+                        id: ws.playerId,
+                        name: ws.playerName,
+                        avatar: ws.playerAvatar,
+                        ws,
+                        score: 0
+                    });
+                    sendTo(ws, { type: 'room:rejoined', playerId: ws.playerId, roomCode });
+                    broadcastRoomState(roomCode);
+                } else {
+                    sendTo(ws, { type: 'room:error', message: 'Salle pleine' });
+                }
                 break;
             }
 
@@ -371,17 +426,21 @@ wss.on('connection', (ws) => {
     });
 });
 
-// Heartbeat to detect dead connections
+// Heartbeat - tolerant: allow 2 missed pings before terminating
 const heartbeat = setInterval(() => {
     wss.clients.forEach(ws => {
         if (!ws.isAlive) {
-            removePlayerFromRoom(ws);
-            return ws.terminate();
+            ws.missedPings = (ws.missedPings || 0) + 1;
+            if (ws.missedPings >= 3) {
+                console.log(`[Server] Terminating dead connection: ${ws.playerId} (${ws.missedPings} missed pings)`);
+                removePlayerFromRoom(ws);
+                return ws.terminate();
+            }
         }
         ws.isAlive = false;
         ws.ping();
     });
-}, 30000);
+}, 15000);
 
 wss.on('close', () => clearInterval(heartbeat));
 
