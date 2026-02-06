@@ -134,7 +134,7 @@ const App = {
             if (this.isMultiplayer) {
                 Multiplayer.leaveRoom();
                 Multiplayer.disconnect();
-                VideoChat.stop();
+                AudioChat.stop();
                 this.isMultiplayer = false;
             }
             this.showScreen('menu-screen');
@@ -445,7 +445,7 @@ const App = {
             Sound.play('click');
             if (Multiplayer.roomCode) Multiplayer.leaveRoom();
             Multiplayer.disconnect();
-            VideoChat.stop();
+            AudioChat.stop();
             this.isMultiplayer = false;
             document.getElementById('lobby-options').classList.remove('hidden');
             document.getElementById('lobby-waiting').classList.add('hidden');
@@ -505,13 +505,13 @@ const App = {
             document.getElementById('disconnect-overlay').classList.add('hidden');
             this.isMultiplayer = false;
             this.hideMultiplayerHeader();
-            VideoChat.stop();
+            AudioChat.stop();
             this.showScreen('menu-screen');
         });
 
-        // Video chat collapse button
-        document.getElementById('vc-collapse-btn').addEventListener('click', () => {
-            VideoChat.toggle();
+        // Audio chat mute button
+        document.getElementById('ac-mute-btn').addEventListener('click', () => {
+            AudioChat.toggleMute();
         });
 
         // Setup multiplayer callbacks
@@ -551,9 +551,9 @@ const App = {
             if (players.length >= 2) {
                 document.getElementById('lobby-status').textContent = 'Tout le monde est là !';
 
-                // Start Jitsi video chat for both players
-                console.log('[App] Starting Jitsi video chat...');
-                VideoChat.start(Multiplayer.roomCode, this.playerName);
+                // Start audio chat between the two players
+                console.log('[App] Starting audio chat...');
+                AudioChat.start(Multiplayer.isHost);
 
                 if (Multiplayer.isHost) {
                     document.getElementById('lobby-start-btn').classList.remove('hidden');
@@ -579,12 +579,26 @@ const App = {
         };
 
         Multiplayer.onPlayerLeft = (msg) => {
+            AudioChat.stop();
             if (msg.disconnected || this.currentScreen === 'game-screen') {
                 document.getElementById('disconnect-overlay').classList.remove('hidden');
             } else {
                 document.getElementById('lobby-status').textContent = 'L\'autre joueur est parti...';
                 document.getElementById('lobby-start-btn').classList.add('hidden');
             }
+        };
+
+        // WebRTC signaling callbacks
+        Multiplayer.onRtcOffer = (msg) => {
+            console.log('[App] Received RTC offer');
+            AudioChat.handleOffer(msg.data);
+        };
+        Multiplayer.onRtcAnswer = (msg) => {
+            console.log('[App] Received RTC answer');
+            AudioChat.handleAnswer(msg.data);
+        };
+        Multiplayer.onRtcIce = (msg) => {
+            AudioChat.handleIce(msg.data);
         };
 
         Multiplayer.onGameStart = (msg) => {
@@ -595,9 +609,8 @@ const App = {
     },
 
     async _startLobbyVideo() {
-        // With Jitsi, we don't need to manually start media
-        // Jitsi handles everything when VideoChat.start() is called
-        console.log('[App] Lobby video - Jitsi will handle media');
+        // Audio chat starts when both players join
+        console.log('[App] Lobby - audio will start when partner joins');
         return true;
     },
 

@@ -2388,158 +2388,105 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 }
 
 /* ---------- Video Chat Overlay ---------- */
-.video-chat-overlay {
+/* ---------- Audio Chat Overlay ---------- */
+.audio-chat-overlay {
     position: fixed;
     bottom: 15px;
     right: 15px;
     z-index: 1000;
-    width: auto;
-    height: auto;
-    padding: 10px;
-    border-radius: 16px;
-    overflow: hidden;
-    background: rgba(0,0,0,0.8);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 24px;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.3s, visibility 0.3s;
 }
 
-.video-chat-overlay.vc-visible {
+.audio-chat-overlay.ac-visible {
     opacity: 1;
     visibility: visible;
 }
 
-.video-chat-overlay.vc-collapsed {
-    width: 60px;
-    height: 40px;
-}
-
-#jitsi-container {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.vc-link {
-    display: block;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.ac-status {
     color: white;
-    text-decoration: none;
-    padding: 15px 20px;
-    border-radius: 12px;
-    font-size: 16px;
-    font-weight: 700;
-    text-align: center;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-    transition: transform 0.2s;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
 }
 
-.vc-link:hover {
-    transform: scale(1.05);
+.ac-status.ac-connecting {
+    color: #ffd93d;
 }
 
-
-.vc-collapse-btn {
-    position: absolute;
-    top: 5px;
-    left: 5px;
-    width: 28px;
-    height: 28px;
+.ac-status.ac-connecting::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    border: none;
-    background: rgba(0,0,0,0.5);
-    color: white;
-    font-size: 0.8rem;
-    cursor: pointer;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    background: #ffd93d;
+    margin-right: 6px;
+    animation: ac-pulse 1s infinite;
 }
 
-.vc-collapse-btn:hover {
-    background: rgba(0,0,0,0.7);
+.ac-status.ac-connected {
+    color: #6bcb77;
 }
 
-.vc-remote {
-    width: 180px;
-    height: 135px;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    background: #1a1a2e;
-    box-shadow: var(--shadow-lg);
-    border: 2px solid rgba(255,255,255,0.2);
-    position: relative;
+.ac-status.ac-connected::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6bcb77;
+    margin-right: 6px;
 }
 
-.vc-remote video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+.ac-status.ac-disconnected {
+    color: #ff6b6b;
 }
 
-.vc-avatar {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    position: absolute;
-    top: 0;
-    left: 0;
+.ac-status.ac-error {
+    color: #ff6b6b;
 }
 
-.vc-local {
-    width: 100px;
-    height: 75px;
-    border-radius: 8px;
-    overflow: hidden;
-    background: #1a1a2e;
-    box-shadow: var(--shadow-md);
-    border: 2px solid rgba(255,255,255,0.15);
-    position: absolute;
-    bottom: 40px;
-    right: 5px;
+@keyframes ac-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
 }
 
-.vc-local .vc-avatar {
-    transform: scaleX(-1);
-}
-
-.vc-local video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transform: scaleX(-1);
-}
-
-.vc-controls {
-    display: flex;
-    gap: 8px;
-}
-
-.vc-btn {
+.ac-btn {
     width: 36px;
     height: 36px;
     border-radius: 50%;
     border: none;
     background: rgba(255,255,255,0.2);
-    backdrop-filter: blur(10px);
-    font-size: 1rem;
+    font-size: 1.1rem;
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 }
 
-.vc-btn:hover {
+.ac-btn:hover {
     background: rgba(255,255,255,0.35);
+    transform: scale(1.1);
 }
 
-.vc-btn.vc-btn-off {
-    background: rgba(255,80,80,0.6);
+.ac-btn.ac-btn-off {
+    background: rgba(255, 80, 80, 0.6);
+}
+
+.ac-btn.hidden {
+    display: none;
 }
 
 /* ---------- Multiplayer Score Header ---------- */
@@ -2733,19 +2680,19 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
         font-size: 2.2rem;
     }
 
-    .vc-remote {
-        width: 130px;
-        height: 98px;
-    }
-
-    .vc-local {
-        width: 70px;
-        height: 53px;
-    }
-
-    .video-chat-overlay {
+    .audio-chat-overlay {
         bottom: 10px;
         right: 10px;
+        padding: 6px 10px;
+    }
+
+    .ac-status {
+        font-size: 11px;
+    }
+
+    .ac-btn {
+        width: 32px;
+        height: 32px;
     }
 
     .mp-score-header {
