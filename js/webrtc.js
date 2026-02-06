@@ -314,7 +314,7 @@ const VideoChat = {
         const localAvatar = document.getElementById('local-avatar');
         const localVideo = document.getElementById('local-video');
         if (localAvatar && me) {
-            localAvatar.src = `images/${me.avatar}.jpg`;
+            localAvatar.src = `images/${me.avatar}.png`;
             const hasVideoTrack = this.localStream && this.localStream.getVideoTracks().length > 0;
             localAvatar.style.display = hasVideoTrack ? 'none' : 'block';
             if (localVideo) localVideo.style.display = hasVideoTrack ? 'block' : 'none';
@@ -324,7 +324,7 @@ const VideoChat = {
         const remoteAvatar = document.getElementById('remote-avatar');
         const remoteVideo = document.getElementById('remote-video');
         if (remoteAvatar && partner) {
-            remoteAvatar.src = `images/${partner.avatar}.jpg`;
+            remoteAvatar.src = `images/${partner.avatar}.png`;
             remoteAvatar.style.display = 'block';  // Show by default
         }
     },

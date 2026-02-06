@@ -544,7 +544,7 @@ const App = {
                 div.className = 'lobby-player';
                 div.innerHTML = `
                     <div class="lobby-player-avatar">
-                        <img src="images/${p.avatar}.jpg" alt="${p.name}">
+                        <img src="images/${p.avatar}.png" alt="${p.name}">
                     </div>
                     <span class="lobby-player-name">${p.name}</span>
                 `;
@@ -645,12 +645,12 @@ const App = {
         const partner = Multiplayer.getPartner();
 
         if (me) {
-            document.getElementById('mp-avatar-left').innerHTML = `<img src="images/${me.avatar}.jpg" alt="${me.name}">`;
+            document.getElementById('mp-avatar-left').innerHTML = `<img src="images/${me.avatar}.png" alt="${me.name}">`;
             document.getElementById('mp-name-left').textContent = me.name;
             document.getElementById('mp-score-left').textContent = '0';
         }
         if (partner) {
-            document.getElementById('mp-avatar-right').innerHTML = `<img src="images/${partner.avatar}.jpg" alt="${partner.name}">`;
+            document.getElementById('mp-avatar-right').innerHTML = `<img src="images/${partner.avatar}.png" alt="${partner.name}">`;
             document.getElementById('mp-name-right').textContent = partner.name;
             document.getElementById('mp-score-right').textContent = '0';
         }
@@ -695,13 +695,13 @@ const App = {
             scoresDiv.innerHTML = `
                 <div class="mp-result-player ${isWinner ? 'mp-winner' : ''}">
                     ${isWinner ? '<span class="mp-result-crown">\u{1F451}</span>' : ''}
-                    <div class="mp-result-avatar"><img src="images/${me.avatar}.jpg" alt="${me.name}"></div>
+                    <div class="mp-result-avatar"><img src="images/${me.avatar}.png" alt="${me.name}"></div>
                     <span class="mp-result-name">${me.name}</span>
                     <span class="mp-result-score">${myScore}</span>
                 </div>
                 <div class="mp-result-player ${partnerIsWinner ? 'mp-winner' : ''}">
                     ${partnerIsWinner ? '<span class="mp-result-crown">\u{1F451}</span>' : ''}
-                    <div class="mp-result-avatar"><img src="images/${partner.avatar}.jpg" alt="${partner.name}"></div>
+                    <div class="mp-result-avatar"><img src="images/${partner.avatar}.png" alt="${partner.name}"></div>
                     <span class="mp-result-name">${partner.name}</span>
                     <span class="mp-result-score">${partnerScore}</span>
                 </div>
