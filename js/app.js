@@ -76,6 +76,18 @@ const App = {
             screen.classList.add('active');
             this.currentScreen = screenId;
         }
+
+        // Multiplayer callee: show waiting banners and dim interactive elements
+        const isCallee = this.isMultiplayer && !Multiplayer.isHost;
+        const ageScreen = document.getElementById('age-screen');
+        const menuScreen = document.getElementById('menu-screen');
+        const ageBanner = document.getElementById('age-waiting-banner');
+        const menuBanner = document.getElementById('menu-waiting-banner');
+
+        if (ageBanner) ageBanner.classList.toggle('hidden', !isCallee || screenId !== 'age-screen');
+        if (menuBanner) menuBanner.classList.toggle('hidden', !isCallee || screenId !== 'menu-screen');
+        if (ageScreen) ageScreen.classList.toggle('mp-callee-dim', isCallee);
+        if (menuScreen) menuScreen.classList.toggle('mp-callee-dim', isCallee);
     },
 
     bindEvents() {
@@ -104,11 +116,16 @@ const App = {
         // Sélection de l'âge
         document.querySelectorAll('.age-btn').forEach(btn => {
             btn.addEventListener('click', () => {
+                if (this.isMultiplayer && !Multiplayer.isHost) return; // callee can't pick
                 Sound.play('click');
                 this.age = parseInt(btn.dataset.age);
                 document.getElementById('selected-age-display').textContent = this.age;
                 this.updateStarsDisplay();
-                this.showScreen('menu-screen');
+                if (this.isMultiplayer) {
+                    Multiplayer.selectAge(this.age);
+                } else {
+                    this.showScreen('menu-screen');
+                }
             });
         });
 
@@ -121,6 +138,7 @@ const App = {
         // Cartes de jeux
         document.querySelectorAll('.game-card').forEach(card => {
             card.addEventListener('click', () => {
+                if (this.isMultiplayer && !Multiplayer.isHost) return; // callee can't pick
                 Sound.play('click');
                 const game = card.dataset.game;
                 if (this.isMultiplayer && Multiplayer.isHost) {
@@ -586,6 +604,14 @@ const App = {
                 // Determine host (first player in the room)
                 Multiplayer.isHost = players.length > 0 && players[0].id === Multiplayer.playerId;
 
+                // Set partner name on waiting banners for callee
+                if (!Multiplayer.isHost) {
+                    const host = players.find(p => p.id !== Multiplayer.playerId);
+                    const hostName = host ? host.name : "L'h\u00F4te";
+                    document.getElementById('age-waiting-text').textContent = `${hostName} choisit l'\u00E2ge...`;
+                    document.getElementById('menu-waiting-text').textContent = `${hostName} choisit le jeu...`;
+                }
+
                 // Start audio chat
                 console.log('[App] Call matched, starting audio...');
                 AudioChat.start(Multiplayer.isHost);
@@ -620,6 +646,14 @@ const App = {
         };
         Multiplayer.onRtcIce = (msg) => {
             AudioChat.handleIce(msg.data);
+        };
+
+        // Age selection broadcast (both host and callee receive this)
+        Multiplayer.onAgeSelected = (msg) => {
+            this.age = msg.age;
+            document.getElementById('selected-age-display').textContent = this.age;
+            this.updateStarsDisplay();
+            this.showScreen('menu-screen');
         };
 
         Multiplayer.onGameStart = (msg) => {

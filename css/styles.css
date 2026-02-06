@@ -2540,6 +2540,42 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
     box-shadow: var(--shadow-lg), 0 7px 0 #cc5555;
 }
 
+/* Multiplayer waiting banner (callee sees this while host picks) */
+.mp-waiting-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 10px 20px;
+    background: rgba(255,230,109,0.2);
+    border: 2px solid rgba(255,230,109,0.4);
+    border-radius: var(--radius-md);
+    margin-bottom: 15px;
+    color: var(--color-yellow);
+    font-weight: 700;
+    font-size: 1rem;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.mp-waiting-banner.hidden {
+    display: none;
+}
+
+.mp-waiting-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-yellow);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Dimmed state for callee - age buttons & game cards not clickable */
+.mp-callee-dim .age-btn,
+.mp-callee-dim .game-card {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
 /* ---------- Video Chat Overlay ---------- */
 /* ---------- Audio Chat Overlay ---------- */
 .audio-chat-overlay {

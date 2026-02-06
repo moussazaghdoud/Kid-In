@@ -36,6 +36,7 @@ const Multiplayer = {
     onCallDeclined: null,
     onCallCancelled: null,
     onCallTimeout: null,
+    onAgeSelected: null,
 
     connect() {
         if (this.connected || this.connecting) {
@@ -217,6 +218,10 @@ const Multiplayer = {
                 if (this.onGameEnd) this.onGameEnd(msg);
                 break;
 
+            case 'age:selected':
+                if (this.onAgeSelected) this.onAgeSelected(msg);
+                break;
+
             case 'call:ringing':
                 if (this.onCallRinging) this.onCallRinging(msg);
                 break;
@@ -310,6 +315,10 @@ const Multiplayer = {
         this._lastRoomCode = null;
         this.players = [];
         this.isHost = false;
+    },
+
+    selectAge(age) {
+        this.send({ type: 'age:select', age });
     },
 
     selectGame(game, age, totalQuestions) {

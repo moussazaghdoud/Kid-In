@@ -418,6 +418,20 @@ wss.on('connection', (ws) => {
                 break;
             }
 
+            // ---- Age Selection (host broadcasts to room) ----
+            case 'age:select': {
+                const room = rooms.get(ws.roomCode);
+                if (!room) break;
+                if (room.host !== ws.playerId) break;
+
+                const ageMsg = {
+                    type: 'age:selected',
+                    age: msg.age
+                };
+                room.players.forEach(p => sendTo(p.ws, ageMsg));
+                break;
+            }
+
             // ---- Game Management ----
             case 'game:select': {
                 const room = rooms.get(ws.roomCode);
