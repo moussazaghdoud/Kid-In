@@ -700,6 +700,7 @@ const App = {
     showMultiplayerHeader() {
         const header = document.getElementById('mp-score-header');
         header.classList.remove('hidden');
+        document.body.classList.add('mp-header-visible');
 
         const me = Multiplayer.players.find(p => p.id === Multiplayer.playerId);
         const partner = Multiplayer.getPartner();
@@ -718,6 +719,7 @@ const App = {
 
     hideMultiplayerHeader() {
         document.getElementById('mp-score-header').classList.add('hidden');
+        document.body.classList.remove('mp-header-visible');
     },
 
     updateMultiplayerScores(scores) {
