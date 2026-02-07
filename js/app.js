@@ -80,13 +80,17 @@ const App = {
         // Homepage music - needs user gesture to start (browser autoplay policy)
         if (screenId === 'welcome-screen') {
             HomepageMusic.init();
-            const startOnce = () => {
-                HomepageMusic.start();
-                document.removeEventListener('click', startOnce);
-                document.removeEventListener('touchstart', startOnce);
-            };
-            document.addEventListener('click', startOnce);
-            document.addEventListener('touchstart', startOnce);
+            if (!this._musicListenerBound) {
+                this._musicListenerBound = true;
+                const tryStartMusic = () => {
+                    if (this.currentScreen === 'welcome-screen' && !HomepageMusic.playing) {
+                        HomepageMusic.start();
+                    }
+                };
+                document.addEventListener('click', tryStartMusic);
+                document.addEventListener('touchstart', tryStartMusic);
+                document.addEventListener('touchend', tryStartMusic);
+            }
         } else {
             HomepageMusic.stop();
         }
@@ -1103,6 +1107,10 @@ const HomepageMusic = {
         }
         try {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            // Mobile browsers require resume() inside a user gesture
+            if (this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
 
             // Master output chain: filter -> delay -> gain -> destination
             this.masterGain = this.ctx.createGain();
