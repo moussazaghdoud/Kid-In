@@ -77,6 +77,20 @@ const App = {
             this.currentScreen = screenId;
         }
 
+        // Homepage music - needs user gesture to start (browser autoplay policy)
+        if (screenId === 'welcome-screen') {
+            HomepageMusic.init();
+            const startOnce = () => {
+                HomepageMusic.start();
+                document.removeEventListener('click', startOnce);
+                document.removeEventListener('touchstart', startOnce);
+            };
+            document.addEventListener('click', startOnce);
+            document.addEventListener('touchstart', startOnce);
+        } else {
+            HomepageMusic.stop();
+        }
+
         // Multiplayer callee: show waiting banners and dim interactive elements
         const isCallee = this.isMultiplayer && !Multiplayer.isHost;
         const ageScreen = document.getElementById('age-screen');
@@ -1049,6 +1063,151 @@ const Sound = {
 };
 
 
+// ==================== MUSIQUE D'ACCUEIL ====================
+const HomepageMusic = {
+    ctx: null,
+    nodes: [],
+    playing: false,
+    muted: false,
+    masterGain: null,
+    interval: null,
+    btn: null,
+
+    init() {
+        // Create mute button in welcome screen
+        const welcome = document.getElementById('welcome-screen');
+        if (!welcome || this.btn) return;
+        this.btn = document.createElement('button');
+        this.btn.id = 'music-toggle';
+        this.btn.className = 'music-toggle-btn';
+        this.btn.innerHTML = '\u{1F50A}';
+        this.btn.title = 'Couper/Remettre la musique';
+        this.btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggle();
+        });
+        welcome.appendChild(this.btn);
+    },
+
+    start() {
+        if (this.playing) return;
+        this.init();
+        if (this.muted) {
+            if (this.btn) this.btn.innerHTML = '\u{1F507}';
+            return;
+        }
+        try {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.value = 0.10;
+            this.masterGain.connect(this.ctx.destination);
+            this.playing = true;
+            if (this.btn) this.btn.innerHTML = '\u{1F50A}';
+            this._playLoop();
+        } catch (e) { /* ignore audio errors */ }
+    },
+
+    stop() {
+        this.playing = false;
+        if (this.interval) { clearTimeout(this.interval); this.interval = null; }
+        this.nodes.forEach(n => { try { n.stop(); } catch(e){} });
+        this.nodes = [];
+        if (this.ctx) { try { this.ctx.close(); } catch(e){} this.ctx = null; }
+    },
+
+    toggle() {
+        this.muted = !this.muted;
+        if (this.muted) {
+            this.stop();
+            if (this.btn) this.btn.innerHTML = '\u{1F507}';
+        } else {
+            this.start();
+        }
+    },
+
+    _playNote(freq, startTime, duration, type, vol) {
+        if (!this.ctx || !this.playing) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.value = freq;
+        gain.gain.value = 0;
+        gain.gain.linearRampToValueAtTime(vol || 0.3, startTime + 0.02);
+        gain.gain.linearRampToValueAtTime(0, startTime + duration);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(startTime);
+        osc.stop(startTime + duration + 0.05);
+        this.nodes.push(osc);
+    },
+
+    _playLoop() {
+        if (!this.playing || !this.ctx) return;
+        const t = this.ctx.currentTime;
+
+        // Cheerful, kid-friendly melody in C major
+        const melodies = [
+            // Melody 1 - playful ascending
+            [
+                [523, 0.3], [587, 0.3], [659, 0.3], [698, 0.3],
+                [784, 0.6], [659, 0.3], [784, 0.3],
+                [880, 0.6], [784, 0.3], [659, 0.3],
+                [587, 0.3], [523, 0.3], [587, 0.6], [523, 0.6]
+            ],
+            // Melody 2 - bouncy
+            [
+                [659, 0.3], [659, 0.3], [698, 0.3], [784, 0.3],
+                [784, 0.3], [698, 0.3], [659, 0.3], [587, 0.3],
+                [523, 0.3], [523, 0.3], [587, 0.3], [659, 0.3],
+                [659, 0.5], [587, 0.2], [587, 0.6]
+            ],
+            // Melody 3 - happy march
+            [
+                [523, 0.4], [523, 0.2], [659, 0.4], [523, 0.2],
+                [784, 0.6], [659, 0.6],
+                [523, 0.4], [523, 0.2], [659, 0.4], [523, 0.2],
+                [880, 0.6], [784, 0.6]
+            ],
+            // Melody 4 - gentle waltz
+            [
+                [523, 0.4], [659, 0.4], [784, 0.4],
+                [880, 0.4], [784, 0.4], [659, 0.4],
+                [698, 0.4], [587, 0.4], [523, 0.4],
+                [587, 0.6], [523, 0.6]
+            ]
+        ];
+
+        const melody = melodies[Math.floor(Math.random() * melodies.length)];
+
+        let offset = 0;
+        melody.forEach(([freq, dur]) => {
+            this._playNote(freq, t + offset, dur, 'sine', 0.25);
+            offset += dur;
+        });
+
+        // Simple bass line (root notes)
+        const bassNotes = [262, 196, 220, 262];
+        const bassDur = offset / bassNotes.length;
+        bassNotes.forEach((freq, i) => {
+            this._playNote(freq, t + i * bassDur, bassDur * 0.9, 'triangle', 0.15);
+        });
+
+        // Light chime accent
+        this._playNote(1047, t + 0.0, 0.15, 'sine', 0.06);
+        this._playNote(1319, t + offset * 0.5, 0.15, 'sine', 0.06);
+
+        // Clean up old nodes
+        this.nodes = this.nodes.filter(n => {
+            try { return n.context.state !== 'closed'; } catch(e) { return false; }
+        });
+
+        // Schedule next loop with a small gap
+        const loopDuration = (offset + 0.8) * 1000;
+        this.interval = setTimeout(() => this._playLoop(), loopDuration);
+    }
+};
+
+
 // ==================== FONCTIONS UTILITAIRES ====================
 function randInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -1282,7 +1441,28 @@ class WordExplorer {
             { word: 'PONT', emoji: '\u{1F309}' },
             { word: 'GANT', emoji: '\u{1F9E4}' },
             { word: 'JOUR', emoji: '\u2600\uFE0F' },
-            { word: 'PAIN', emoji: '\u{1F956}' }
+            { word: 'PAIN', emoji: '\u{1F956}' },
+            { word: 'LAIT', emoji: '\u{1F95B}' },
+            { word: 'ROSE', emoji: '\u{1F339}' },
+            { word: 'BAIN', emoji: '\u{1F6C1}' },
+            { word: 'OURS', emoji: '\u{1F43B}' },
+            { word: 'LION', emoji: '\u{1F981}' },
+            { word: 'CERF', emoji: '\u{1F98C}' },
+            { word: 'LOUP', emoji: '\u{1F43A}' },
+            { word: 'CAKE', emoji: '\u{1F370}' },
+            { word: 'MIEL', emoji: '\u{1F36F}' },
+            { word: 'PEUR', emoji: '\u{1F628}' },
+            { word: 'RIRE', emoji: '\u{1F602}' },
+            { word: 'NEUF', emoji: '\u{1F522}' },
+            { word: 'BLEU', emoji: '\u{1F535}' },
+            { word: 'MINE', emoji: '\u270F\uFE0F' },
+            { word: 'BOIS', emoji: '\u{1FAB5}' },
+            { word: 'TOIT', emoji: '\u{1F3E0}' },
+            { word: 'PEAU', emoji: '\u270B' },
+            { word: 'DOUX', emoji: '\u{1F9F8}' },
+            { word: 'TIGE', emoji: '\u{1F33F}' },
+            { word: 'NOIX', emoji: '\u{1F95C}' },
+            { word: 'ROUX', emoji: '\u{1F98A}' }
         ];
 
         const medium = [
@@ -1299,7 +1479,28 @@ class WordExplorer {
             { word: 'TERRE', emoji: '\u{1F30D}' },
             { word: 'LAMPE', emoji: '\u{1F4A1}' },
             { word: 'POMME', emoji: '\u{1F34E}' },
-            { word: 'PIANO', emoji: '\u{1F3B9}' }
+            { word: 'PIANO', emoji: '\u{1F3B9}' },
+            { word: 'GLACE', emoji: '\u{1F368}' },
+            { word: 'FUSEE', emoji: '\u{1F680}' },
+            { word: 'HERBE', emoji: '\u{1F33F}' },
+            { word: 'AVION', emoji: '\u2708\uFE0F' },
+            { word: 'ROUE', emoji: '\u{1F6DE}' },
+            { word: 'COEUR', emoji: '\u2764\uFE0F' },
+            { word: 'TABLE', emoji: '\u{1F4DD}' },
+            { word: 'SOUCI', emoji: '\u{1F33B}' },
+            { word: 'FRERE', emoji: '\u{1F466}' },
+            { word: 'CYGNE', emoji: '\u{1F9A2}' },
+            { word: 'PERLE', emoji: '\u{1F90D}' },
+            { word: 'NEIGE', emoji: '\u2744\uFE0F' },
+            { word: 'BAGUE', emoji: '\u{1F48D}' },
+            { word: 'DANSE', emoji: '\u{1F483}' },
+            { word: 'PLUME', emoji: '\u{1FAB6}' },
+            { word: 'CORDE', emoji: '\u{1FA22}' },
+            { word: 'RUCHE', emoji: '\u{1F41D}' },
+            { word: 'POIRE', emoji: '\u{1F350}' },
+            { word: 'MOUCHE', emoji: '\u{1FAB0}' },
+            { word: 'SINGE', emoji: '\u{1F435}' },
+            { word: 'FRAISE', emoji: '\u{1F353}' }
         ];
 
         const hard = [
@@ -1316,9 +1517,29 @@ class WordExplorer {
             { word: 'RENARD', emoji: '\u{1F98A}' },
             { word: 'MONTRE', emoji: '\u231A' },
             { word: 'ORANGE', emoji: '\u{1F34A}' },
-            { word: 'NUAGES', emoji: '\u{1F325}\uFE0F' }
+            { word: 'NUAGES', emoji: '\u{1F325}\uFE0F' },
+            { word: 'PAPIER', emoji: '\u{1F4C4}' },
+            { word: 'PIRATE', emoji: '\u{1F3F4}\u200D\u2620\uFE0F' },
+            { word: 'REQUIN', emoji: '\u{1F988}' },
+            { word: 'TORTUE', emoji: '\u{1F422}' },
+            { word: 'CIRQUE', emoji: '\u{1F3AA}' },
+            { word: 'VIOLET', emoji: '\u{1F49C}' },
+            { word: 'FEUTRE', emoji: '\u{1F58D}\uFE0F' },
+            { word: 'LOUTRE', emoji: '\u{1F9A6}' },
+            { word: 'CASQUE', emoji: '\u{1FA96}' },
+            { word: 'PLANTE', emoji: '\u{1FAB4}' },
+            { word: 'BANANE', emoji: '\u{1F34C}' },
+            { word: 'MOUTON', emoji: '\u{1F411}' },
+            { word: 'GIRAFE', emoji: '\u{1F992}' },
+            { word: 'CRABE', emoji: '\u{1F980}' },
+            { word: 'TEMPETE', emoji: '\u26C8\uFE0F' },
+            { word: 'FOURMI', emoji: '\u{1F41C}' },
+            { word: 'LICORNE', emoji: '\u{1F984}' },
+            { word: 'MUSIQUE', emoji: '\u{1F3B5}' },
+            { word: 'FOUDRE', emoji: '\u26A1' },
+            { word: 'HIBOU', emoji: '\u{1F989}' },
+            { word: 'TIGRES', emoji: '\u{1F405}' }
         ];
-
         if (this.age <= 6) return simple;
         if (this.age <= 8) return medium;
         return hard;
@@ -2133,9 +2354,37 @@ class QuizTime {
             { q: 'Quel fruit est jaune et courb\u00E9 ?', options: ['Pomme', 'Banane', 'Orange', 'Raisin'], answer: 1, emoji: '\u{1F34C}' },
             { q: 'En quelle saison tombe la neige ?', options: ['\u00C9t\u00E9', 'Printemps', 'Automne', 'Hiver'], answer: 3, emoji: '\u2744\uFE0F' },
             { q: 'Quel couleur obtient-on en m\u00E9langeant rouge et jaune ?', options: ['Bleu', 'Vert', 'Orange', 'Violet'], answer: 2, emoji: '\u{1F3A8}' },
-            { q: 'Que fabriquent les abeilles ?', options: ['Du lait', 'Du miel', 'Du jus', 'De l\'eau'], answer: 1, emoji: '\u{1F41D}' },
-            { q: 'Qui est plus gros : un \u00E9l\u00E9phant ou une souris ?', options: ['La souris', 'L\'\u00E9l\u00E9phant', 'Pareil', 'Le chat'], answer: 1, emoji: '\u{1F418}' },
-            { q: 'Avec quoi mange-t-on de la soupe ?', options: ['Fourchette', 'Couteau', 'Cuill\u00E8re', 'Verre'], answer: 2, emoji: '\u{1F963}' }
+            { q: 'Que fabriquent les abeilles ?', options: ['Du lait', 'Du miel', 'Du jus', "De l'eau"], answer: 1, emoji: '\u{1F41D}' },
+            { q: 'Qui est plus gros : un \u00E9l\u00E9phant ou une souris ?', options: ['La souris', "L'\u00E9l\u00E9phant", 'Pareil', 'Le chat'], answer: 1, emoji: '\u{1F418}' },
+            { q: 'Avec quoi mange-t-on de la soupe ?', options: ['Fourchette', 'Couteau', 'Cuill\u00E8re', 'Verre'], answer: 2, emoji: '\u{1F963}' },
+            { q: 'Quel animal a une tr\u00E8s longue trompe ?', options: ['La girafe', "L'\u00E9l\u00E9phant", 'Le singe', 'Le lion'], answer: 1, emoji: '\u{1F418}' },
+            { q: 'Combien de roues a un v\u00E9lo ?', options: ['1', '2', '3', '4'], answer: 1, emoji: '\u{1F6B2}' },
+            { q: 'Quel animal vit dans une coquille ?', options: ['Le chat', "L'escargot", 'Le chien', 'Le lapin'], answer: 1, emoji: '\u{1F40C}' },
+            { q: 'Quelle couleur obtient-on en m\u00E9langeant bleu et jaune ?', options: ['Rouge', 'Orange', 'Vert', 'Violet'], answer: 2, emoji: '\u{1F3A8}' },
+            { q: 'Quel repas prend-on le matin ?', options: ['Le d\u00EEner', 'Le go\u00FBter', 'Le petit-d\u00E9jeuner', 'Le souper'], answer: 2, emoji: '\u{1F950}' },
+            { q: 'Combien y a-t-il de saisons ?', options: ['2', '3', '4', '5'], answer: 2, emoji: '\u{1F342}' },
+            { q: 'Quel animal fait "B\u00EA\u00EA" ?', options: ['La vache', 'Le mouton', 'Le cochon', 'Le coq'], answer: 1, emoji: '\u{1F411}' },
+            { q: 'De quelle couleur est une fraise ?', options: ['Jaune', 'Bleue', 'Verte', 'Rouge'], answer: 3, emoji: '\u{1F353}' },
+            { q: 'Quel animal a de longues oreilles et saute ?', options: ['Le chat', 'Le lapin', 'Le chien', 'La poule'], answer: 1, emoji: '\u{1F430}' },
+            { q: 'O\u00F9 vivent les poissons ?', options: ['Dans les arbres', 'Dans le ciel', "Dans l'eau", 'Sous la terre'], answer: 2, emoji: '\u{1F41F}' },
+            { q: 'Combien de pattes a une araign\u00E9e ?', options: ['4', '6', '8', '10'], answer: 2, emoji: '\u{1F577}\uFE0F' },
+            { q: 'Quel animal est le roi de la jungle ?', options: ['Le tigre', "L'ours", 'Le lion', 'Le loup'], answer: 2, emoji: '\u{1F981}' },
+            { q: 'Quelle est la couleur du soleil dans les dessins ?', options: ['Bleu', 'Vert', 'Rouge', 'Jaune'], answer: 3, emoji: '\u2600\uFE0F' },
+            { q: 'Quel animal fait "Cocorico" ?', options: ['Le canard', 'La poule', 'Le coq', 'Le dindon'], answer: 2, emoji: '\u{1F413}' },
+            { q: 'Avec quoi peut-on couper du papier ?', options: ['Un stylo', 'Des ciseaux', 'Une gomme', 'Un crayon'], answer: 1, emoji: '\u2702\uFE0F' },
+            { q: 'Quel est le b\u00E9b\u00E9 du cheval ?', options: ['Le chiot', 'Le chaton', 'Le poulain', "L'agneau"], answer: 2, emoji: '\u{1F434}' },
+            { q: 'Quelle forme a un ballon de foot ?', options: ['Carr\u00E9', 'Triangle', 'Ronde', 'Rectangle'], answer: 2, emoji: '\u26BD' },
+            { q: 'Combien font 2 + 3 ?', options: ['4', '5', '6', '7'], answer: 1, emoji: '\u{1F522}' },
+            { q: "Qu'est-ce qui tombe du ciel quand il pleut ?", options: ['Des feuilles', 'De la neige', "De l'eau", 'Du sable'], answer: 2, emoji: '\u{1F327}\uFE0F' },
+            { q: "De quelle couleur est l'herbe ?", options: ['Rouge', 'Bleue', 'Jaune', 'Verte'], answer: 3, emoji: '\u{1F33F}' },
+            { q: 'Quel animal produit du lait ?', options: ['Le chat', 'La vache', 'Le lapin', 'Le coq'], answer: 1, emoji: '\u{1F404}' },
+            { q: 'Combien de c\u00F4t\u00E9s a un carr\u00E9 ?', options: ['3', '4', '5', '6'], answer: 1, emoji: '\u{1F7E6}' },
+            { q: 'Quel animal a des rayures noires et blanches ?', options: ['Le lion', 'Le z\u00E8bre', "L'ours", 'Le singe'], answer: 1, emoji: '\u{1F993}' },
+            { q: 'Que fait-on avec un lit ?', options: ['On mange', 'On dort', 'On joue', 'On court'], answer: 1, emoji: '\u{1F6CF}\uFE0F' },
+            { q: 'Quel insecte fait de la lumi\u00E8re la nuit ?', options: ['La mouche', 'La luciole', 'Le papillon', 'La fourmi'], answer: 1, emoji: '\u{1FAB2}' },
+            { q: 'Quel animal porte sa maison sur son dos ?', options: ['Le h\u00E9risson', 'La tortue', 'Le crabe', 'Le lapin'], answer: 1, emoji: '\u{1F422}' },
+            { q: "Qu'utilise-t-on pour \u00E9crire sur du papier ?", options: ['Un marteau', 'Un crayon', 'Une assiette', 'Une chaussure'], answer: 1, emoji: '\u270F\uFE0F' },
+            { q: 'Quel animal vole et fait du miel ?', options: ['La mouche', 'Le papillon', "L'abeille", 'La coccinelle'], answer: 2, emoji: '\u{1F41D}' }
         ];
 
         const q78 = [
@@ -2149,25 +2398,104 @@ class QuizTime {
             { q: 'Quel animal terrestre est le plus rapide ?', options: ['Lion', 'Cheval', 'Gu\u00E9pard', 'Aigle'], answer: 2, emoji: '\u{1F406}' },
             { q: 'Quel organe pompe le sang dans ton corps ?', options: ['Cerveau', 'Poumons', 'C\u0153ur', 'Estomac'], answer: 2, emoji: '\u2764\uFE0F' },
             { q: 'Combien de mois ont 31 jours ?', options: ['5', '6', '7', '8'], answer: 2, emoji: '\u{1F4C6}' },
-            { q: 'Quelle est la temp\u00E9rature d\'\u00E9bullition de l\'eau ?', options: ['50\u00B0C', '100\u00B0C', '150\u00B0C', '200\u00B0C'], answer: 1, emoji: '\u{1F321}\uFE0F' },
-            { q: 'Quel animal peut changer de couleur ?', options: ['Grenouille', 'Cam\u00E9l\u00E9on', 'Serpent', 'Perroquet'], answer: 1, emoji: '\u{1F98E}' }
+            { q: "Quelle est la temp\u00E9rature d'\u00E9bullition de l'eau ?", options: ['50\u00B0C', '100\u00B0C', '150\u00B0C', '200\u00B0C'], answer: 1, emoji: '\u{1F321}\uFE0F' },
+            { q: 'Quel animal peut changer de couleur ?', options: ['Grenouille', 'Cam\u00E9l\u00E9on', 'Serpent', 'Perroquet'], answer: 1, emoji: '\u{1F98E}' },
+            { q: 'Combien de plan\u00E8tes y a-t-il dans le syst\u00E8me solaire ?', options: ['6', '7', '8', '9'], answer: 2, emoji: '\u{1FA90}' },
+            { q: 'Quel est le fleuve le plus long du monde ?', options: ['Le Nil', "L'Amazone", 'Le Mississippi', 'Le Yangts\u00E9'], answer: 1, emoji: '\u{1F3DE}\uFE0F' },
+            { q: 'Quel animal est connu pour sa m\u00E9moire ?', options: ['Le poisson', "L'\u00E9l\u00E9phant", 'Le chat', 'Le hamster'], answer: 1, emoji: '\u{1F418}' },
+            { q: 'Combien de dents a un adulte normalement ?', options: ['20', '28', '32', '36'], answer: 2, emoji: '\u{1F9B7}' },
+            { q: 'Quelle est la plan\u00E8te rouge ?', options: ['V\u00E9nus', 'Mars', 'Jupiter', 'Saturne'], answer: 1, emoji: '\u{1F534}' },
+            { q: 'Quel est le plus petit continent ?', options: ['Europe', 'Antarctique', 'Oc\u00E9anie', 'Afrique'], answer: 2, emoji: '\u{1F30F}' },
+            { q: "De quelle couleur est une \u00E9meraude ?", options: ['Rouge', 'Bleue', 'Verte', 'Jaune'], answer: 2, emoji: '\u{1F49A}' },
+            { q: 'Combien de pattes a un insecte ?', options: ['4', '6', '8', '10'], answer: 1, emoji: '\u{1F41C}' },
+            { q: 'Quel est le plus grand animal du monde ?', options: ["L'\u00E9l\u00E9phant", 'La girafe', 'La baleine bleue', 'Le requin'], answer: 2, emoji: '\u{1F40B}' },
+            { q: "Quel pays a la forme d'une botte ?", options: ['France', 'Espagne', 'Italie', 'Gr\u00E8ce'], answer: 2, emoji: '\u{1F1EE}\u{1F1F9}' },
+            { q: 'Combien de couleurs y a-t-il dans un arc-en-ciel ?', options: ['5', '6', '7', '8'], answer: 2, emoji: '\u{1F308}' },
+            { q: 'Quel os est le plus long du corps humain ?', options: ["L'hum\u00E9rus", 'Le tibia', 'Le f\u00E9mur', 'Le p\u00E9ron\u00E9'], answer: 2, emoji: '\u{1F9B4}' },
+            { q: 'Quel est le m\u00E9tal le plus l\u00E9ger ?', options: ['Fer', 'Aluminium', 'Or', 'Lithium'], answer: 3, emoji: '\u2697\uFE0F' },
+            { q: "Quel animal est le symbole de l'Australie ?", options: ['Le koala', 'Le kangourou', "L'\u00E9meu", 'Le wombat'], answer: 1, emoji: '\u{1F998}' },
+            { q: "Combien de litres de sang a un adulte environ ?", options: ['2 litres', '5 litres', '8 litres', '10 litres'], answer: 1, emoji: '\u{1FA78}' },
+            { q: "Quelle est la capitale de l'Espagne ?", options: ['Barcelone', 'Madrid', 'S\u00E9ville', 'Valence'], answer: 1, emoji: '\u{1F1EA}\u{1F1F8}' },
+            { q: 'Quel est le plus gros organe du corps humain ?', options: ['Le foie', 'Le cerveau', 'La peau', 'Les poumons'], answer: 2, emoji: '\u{1F9EC}' },
+            { q: 'De quoi est principalement compos\u00E9 le Soleil ?', options: ['De roche', 'De fer', "D'hydrog\u00E8ne", "D'oxyg\u00E8ne"], answer: 2, emoji: '\u2600\uFE0F' },
+            { q: 'Quel est le mammif\u00E8re le plus petit du monde ?', options: ['La souris', 'Le hamster', 'La musaraigne \u00E9trusque', 'Le rat'], answer: 2, emoji: '\u{1F42D}' },
+            { q: "Combien d'heures y a-t-il dans une journ\u00E9e ?", options: ['12', '20', '24', '30'], answer: 2, emoji: '\u{1F550}' },
+            { q: 'Quel animal dort debout ?', options: ['La vache', 'Le cheval', 'Le chat', 'Le chien'], answer: 1, emoji: '\u{1F40E}' },
+            { q: 'Quel sens utilise-t-on pour \u00E9couter ?', options: ['La vue', "L'ou\u00EFe", 'Le go\u00FBt', 'Le toucher'], answer: 1, emoji: '\u{1F442}' },
+            { q: "Combien de semaines y a-t-il dans une ann\u00E9e ?", options: ['48', '50', '52', '54'], answer: 2, emoji: '\u{1F4C5}' },
+            { q: 'Quel gaz respirons-nous ?', options: ['Azote', 'Oxyg\u00E8ne', 'Hydrog\u00E8ne', 'H\u00E9lium'], answer: 1, emoji: '\u{1F4A8}' },
+            { q: 'Quel instrument de musique a 6 cordes ?', options: ['Violon', 'Guitare', 'Harpe', 'Piano'], answer: 1, emoji: '\u{1F3B8}' },
+            { q: 'Quelle plan\u00E8te a des anneaux visibles ?', options: ['Jupiter', 'Mars', 'Saturne', 'Neptune'], answer: 2, emoji: '\u{1FA90}' },
+            { q: 'De quel pays vient le sushi ?', options: ['Chine', 'Cor\u00E9e', 'Tha\u00EFlande', 'Japon'], answer: 3, emoji: '\u{1F363}' },
+            { q: "Combien de vert\u00E8bres a un \u00EAtre humain ?", options: ['24', '33', '40', '50'], answer: 1, emoji: '\u{1F9B4}' },
+            { q: 'Quel est le plus long animal du monde ?', options: ['La baleine bleue', 'Le python r\u00E9ticul\u00E9', 'La m\u00E9duse \u00E0 crini\u00E8re de lion', 'Le requin-baleine'], answer: 2, emoji: '\u{1F40D}' },
+            { q: 'Quelle est la capitale de la Gr\u00E8ce ?', options: ['Istanbul', 'Ath\u00E8nes', 'Rome', 'Sofia'], answer: 1, emoji: '\u{1F1EC}\u{1F1F7}' },
+            { q: 'Combien de faces a un d\u00E9 classique ?', options: ['4', '6', '8', '12'], answer: 1, emoji: '\u{1F3B2}' },
+            { q: 'Quel m\u00E9tal est attir\u00E9 par un aimant ?', options: ['Aluminium', 'Cuivre', 'Fer', 'Or'], answer: 2, emoji: '\u{1F9F2}' },
+            { q: "Quel est l'animal le plus haut du monde ?", options: ['L\'\u00E9l\u00E9phant', 'La girafe', 'Le chameau', 'L\'autruche'], answer: 1, emoji: '\u{1F992}' },
+            { q: 'Combien de minutes y a-t-il dans une heure ?', options: ['30', '45', '60', '100'], answer: 2, emoji: '\u{1F552}' },
+            { q: 'Quel organe filtre le sang dans le corps ?', options: ['Le foie', 'Les reins', 'Le c\u0153ur', 'Les poumons'], answer: 1, emoji: '\u{1F9EC}' },
+            { q: "Quelle mer borde le sud de la France ?", options: ['Mer du Nord', 'Oc\u00E9an Atlantique', 'Mer M\u00E9diterran\u00E9e', 'Manche'], answer: 2, emoji: '\u{1F30A}' },
+            { q: 'Quel est le plus petit pays du monde ?', options: ['Monaco', 'Vatican', 'Malte', 'San Marin'], answer: 1, emoji: '\u{1F3F0}' }
         ];
 
         const q910 = [
-            { q: 'Quel est le symbole chimique de l\'eau ?', options: ['O2', 'H2O', 'CO2', 'NaCl'], answer: 1, emoji: '\u{1F4A7}' },
+            { q: "Quel est le symbole chimique de l'eau ?", options: ['O2', 'H2O', 'CO2', 'NaCl'], answer: 1, emoji: '\u{1F4A7}' },
             { q: 'Qui a peint la Joconde ?', options: ['Picasso', 'De Vinci', 'Van Gogh', 'Monet'], answer: 1, emoji: '\u{1F5BC}\uFE0F' },
             { q: 'Quelle est la capitale du Japon ?', options: ['S\u00E9oul', 'P\u00E9kin', 'Tokyo', 'Bangkok'], answer: 2, emoji: '\u{1F5FC}' },
-            { q: 'Combien d\'os y a-t-il dans le corps humain ?', options: ['106', '206', '306', '406'], answer: 1, emoji: '\u{1F9B4}' },
+            { q: "Combien d'os y a-t-il dans le corps humain ?", options: ['106', '206', '306', '406'], answer: 1, emoji: '\u{1F9B4}' },
             { q: 'Quelle est la plus grande plan\u00E8te du syst\u00E8me solaire ?', options: ['Saturne', 'Jupiter', 'Neptune', 'Uranus'], answer: 1, emoji: '\u{1FA90}' },
             { q: 'Quelle force nous maintient au sol ?', options: ['Magn\u00E9tisme', 'Friction', 'Gravit\u00E9', 'Vent'], answer: 2, emoji: '\u{1F30D}' },
             { q: 'Combien font 15% de 200 ?', options: ['15', '20', '25', '30'], answer: 3, emoji: '\u{1F4CA}' },
             { q: 'Quel instrument a 88 touches ?', options: ['Guitare', 'Violon', 'Piano', 'Batterie'], answer: 2, emoji: '\u{1F3B9}' },
             { q: 'Quelle est la vitesse de la lumi\u00E8re ?', options: ['300 km/s', '3 000 km/s', '300 000 km/s', '3 000 000 km/s'], answer: 2, emoji: '\u26A1' },
-            { q: 'Quel pourcentage de la Terre est couvert d\'eau ?', options: ['50%', '61%', '71%', '81%'], answer: 2, emoji: '\u{1F30A}' },
+            { q: "Quel pourcentage de la Terre est couvert d'eau ?", options: ['50%', '61%', '71%', '81%'], answer: 2, emoji: '\u{1F30A}' },
             { q: 'Quel est le plus petit nombre premier ?', options: ['0', '1', '2', '3'], answer: 2, emoji: '\u{1F522}' },
-            { q: 'Quel gaz compose la majorit\u00E9 de l\'atmosph\u00E8re ?', options: ['Oxyg\u00E8ne', 'Azote', 'Dioxyde de carbone', 'Hydrog\u00E8ne'], answer: 1, emoji: '\u{1F32C}\uFE0F' }
+            { q: "Quel gaz compose la majorit\u00E9 de l'atmosph\u00E8re ?", options: ['Oxyg\u00E8ne', 'Azote', 'Dioxyde de carbone', 'Hydrog\u00E8ne'], answer: 1, emoji: '\u{1F32C}\uFE0F' },
+            { q: "Quelle est la capitale de l'Australie ?", options: ['Sydney', 'Melbourne', 'Canberra', 'Brisbane'], answer: 2, emoji: '\u{1F1E6}\u{1F1FA}' },
+            { q: "Combien de chromosomes a un \u00EAtre humain ?", options: ['23', '44', '46', '48'], answer: 2, emoji: '\u{1F9EC}' },
+            { q: "Quel est le plus long fleuve d'Europe ?", options: ['Le Danube', 'Le Rhin', 'La Volga', 'La Seine'], answer: 2, emoji: '\u{1F3DE}\uFE0F' },
+            { q: 'Qui a formul\u00E9 la th\u00E9orie de la relativit\u00E9 ?', options: ['Newton', 'Einstein', 'Galil\u00E9e', 'Hawking'], answer: 1, emoji: '\u{1F9EA}' },
+            { q: 'Quel est le symbole chimique du fer ?', options: ['Fr', 'Fi', 'Fe', 'Fa'], answer: 2, emoji: '\u2699\uFE0F' },
+            { q: 'Quel est le plus grand d\u00E9sert du monde ?', options: ['Le Sahara', 'Le Gobi', "L'Antarctique", "L'Arabie"], answer: 2, emoji: '\u{1F3D4}\uFE0F' },
+            { q: 'Combien de faces a un cube ?', options: ['4', '6', '8', '12'], answer: 1, emoji: '\u{1F3B2}' },
+            { q: 'Quelle est la monnaie du Japon ?', options: ['Le yuan', 'Le won', 'Le yen', 'Le baht'], answer: 2, emoji: '\u{1F4B4}' },
+            { q: "Quel est l'organe le plus lourd du corps ?", options: ['Le cerveau', 'Le foie', 'La peau', 'Les poumons'], answer: 1, emoji: '\u{1FAC1}' },
+            { q: "Quel est le point le plus profond de l'oc\u00E9an ?", options: ['Fosse de Porto Rico', 'Fosse des Mariannes', 'Fosse de Java', 'Fosse des Tonga'], answer: 1, emoji: '\u{1F30A}' },
+            { q: "De combien d'atomes est compos\u00E9e une mol\u00E9cule d'eau ?", options: ['2', '3', '4', '5'], answer: 1, emoji: '\u{1F4A7}' },
+            { q: 'Quel pays a la plus grande population ?', options: ['USA', 'Inde', 'Chine', 'Br\u00E9sil'], answer: 1, emoji: '\u{1F30F}' },
+            { q: 'Quelle est la formule de la force ?', options: ['F = m \u00D7 a', 'F = m + a', 'F = m / a', 'F = m \u2212 a'], answer: 0, emoji: '\u2696\uFE0F' },
+            { q: 'Combien de sommets a un triangle ?', options: ['2', '3', '4', '5'], answer: 1, emoji: '\u{1F4D0}' },
+            { q: 'Quel animal peut r\u00E9g\u00E9n\u00E9rer ses membres ?', options: ['Le l\u00E9zard', "L'\u00E9toile de mer", 'Le serpent', 'La grenouille'], answer: 1, emoji: '\u2B50' },
+            { q: "Quel est le m\u00E9tal le plus conducteur d'\u00E9lectricit\u00E9 ?", options: ['Or', 'Cuivre', 'Argent', 'Aluminium'], answer: 2, emoji: '\u26A1' },
+            { q: "Quelle est la capitale de l'\u00C9gypte ?", options: ['Alexandrie', 'Le Caire', 'Louxor', 'Assouan'], answer: 1, emoji: '\u{1F3DB}\uFE0F' },
+            { q: 'Combien font 3 puissance 4 ?', options: ['12', '64', '81', '27'], answer: 2, emoji: '\u{1F522}' },
+            { q: 'Quel est le gaz n\u00E9cessaire \u00E0 la combustion ?', options: ['Azote', 'Hydrog\u00E8ne', 'Oxyg\u00E8ne', 'H\u00E9lium'], answer: 2, emoji: '\u{1F525}' },
+            { q: 'Quelle plan\u00E8te est surnomm\u00E9e "la plan\u00E8te bleue" ?', options: ['Neptune', 'Uranus', 'La Terre', 'V\u00E9nus'], answer: 2, emoji: '\u{1F30D}' },
+            { q: 'Quel scientifique a d\u00E9couvert la p\u00E9nicilline ?', options: ['Pasteur', 'Fleming', 'Koch', 'Curie'], answer: 1, emoji: '\u{1F52C}' },
+            { q: 'Combien de satellites naturels a la Terre ?', options: ['0', '1', '2', '3'], answer: 1, emoji: '\u{1F319}' },
+            { q: "Quel est le symbole chimique de l'or ?", options: ['Or', 'Au', 'Ag', 'Go'], answer: 1, emoji: '\u{1F947}' },
+            { q: "\u00C0 quelle temp\u00E9rature l'eau g\u00E8le-t-elle ?", options: ['-10\u00B0C', '0\u00B0C', '10\u00B0C', '4\u00B0C'], answer: 1, emoji: '\u{1F9CA}' },
+            { q: 'Quel est le plus petit os du corps humain ?', options: ['Le marteau', "L'\u00E9trier", "L'enclume", 'Le pisiforme'], answer: 1, emoji: '\u{1F9B4}' },
+            { q: 'Quelle est la 7e plan\u00E8te du syst\u00E8me solaire ?', options: ['Saturne', 'Neptune', 'Uranus', 'Pluton'], answer: 2, emoji: '\u{1FA90}' },
+            { q: "De quelle \u00EEle vient Napol\u00E9on ?", options: ['Sicile', 'Sardaigne', 'Corse', 'Malte'], answer: 2, emoji: '\u{1F451}' },
+            { q: "Combien de litres d'air respirons-nous par jour ?", options: ['5 000', '10 000', '15 000', '20 000'], answer: 2, emoji: '\u{1F4A8}' },
+            { q: 'Quel est le plus grand organe interne du corps ?', options: ['Les poumons', 'Le foie', 'L\'estomac', 'Le cerveau'], answer: 1, emoji: '\u{1FAC1}' },
+            { q: 'Quel m\u00E9tal a pour symbole Ag ?', options: ['Or', 'Argent', 'Aluminium', 'Arsenic'], answer: 1, emoji: '\u{1F48E}' },
+            { q: 'Combien de paires de c\u00F4tes a le corps humain ?', options: ['10', '12', '14', '16'], answer: 1, emoji: '\u{1F9B4}' },
+            { q: 'Quelle est la plan\u00E8te la plus lointaine du Soleil ?', options: ['Uranus', 'Neptune', 'Pluton', 'Saturne'], answer: 1, emoji: '\u{1FA90}' },
+            { q: 'Qui a \u00E9crit "Les Mis\u00E9rables" ?', options: ['Zola', 'Hugo', 'Balzac', 'Dumas'], answer: 1, emoji: '\u{1F4D6}' },
+            { q: 'Combien de c\u00F4t\u00E9s a un d\u00E9cagone ?', options: ['8', '10', '12', '14'], answer: 1, emoji: '\u{1F4D0}' },
+            { q: 'Quel est le pH neutre ?', options: ['0', '5', '7', '14'], answer: 2, emoji: '\u{1F9EA}' },
+            { q: 'Quelle est la capitale du Canada ?', options: ['Toronto', 'Montr\u00E9al', 'Vancouver', 'Ottawa'], answer: 3, emoji: '\u{1F1E8}\u{1F1E6}' },
+            { q: 'Quel est le nombre de Pi arrondi au centi\u00E8me ?', options: ['3,12', '3,14', '3,16', '3,18'], answer: 1, emoji: '\u{1F522}' },
+            { q: 'Quelle est la mol\u00E9cule de sel de cuisine ?', options: ['NaCl', 'KCl', 'CaCl2', 'NaOH'], answer: 0, emoji: '\u{1F9C2}' },
+            { q: 'Quel est l\'animal terrestre le plus lourd ?', options: ['L\'hippopotame', 'Le rhinoc\u00E9ros', 'L\'\u00E9l\u00E9phant d\'Afrique', 'La girafe'], answer: 2, emoji: '\u{1F418}' },
+            { q: 'Combien de touches a un piano standard ?', options: ['66', '78', '88', '96'], answer: 2, emoji: '\u{1F3B9}' },
+            { q: 'Quelle invention est attribu\u00E9e \u00E0 Gutenberg ?', options: ['Le t\u00E9l\u00E9scope', 'L\'imprimerie', 'La boussole', 'La poudre'], answer: 1, emoji: '\u{1F4DA}' },
+            { q: 'Quel est le fleuve le plus long de France ?', options: ['La Seine', 'Le Rh\u00F4ne', 'La Loire', 'La Garonne'], answer: 2, emoji: '\u{1F3DE}\uFE0F' },
+            { q: 'Combien de degr\u00E9s a un angle droit ?', options: ['45', '90', '180', '360'], answer: 1, emoji: '\u{1F4D0}' }
         ];
-
         let pool;
         if (this.age <= 6) pool = q56;
         else if (this.age <= 8) pool = q78;
@@ -2258,62 +2586,109 @@ class OddOneOut {
 
     getQuestionBank() {
         const q56 = [
-            { items: ['\u{1F34E}', '\u{1F34C}', '\u{1F347}', '\u{1F436}'], intrus: 3, hint: 'Un n\'est pas un fruit' },
-            { items: ['\u{1F697}', '\u{1F68C}', '\u{1F431}', '\u{1F6B2}'], intrus: 2, hint: 'Un n\'est pas un v\u00E9hicule' },
-            { items: ['\u{1F431}', '\u{1F436}', '\u{1F34E}', '\u{1F430}'], intrus: 2, hint: 'Un n\'est pas un animal' },
-            { items: ['\u{1F534}', '\u{1F535}', '\u{1F7E2}', '\u{1F414}'], intrus: 3, hint: 'Un n\'est pas une couleur' },
-            { items: ['\u2600\uFE0F', '\u{1F319}', '\u2B50', '\u{1F333}'], intrus: 3, hint: 'Un n\'est pas dans le ciel' },
+            { items: ['\u{1F34E}', '\u{1F34C}', '\u{1F347}', '\u{1F436}'], intrus: 3, hint: "Un n'est pas un fruit" },
+            { items: ['\u{1F697}', '\u{1F68C}', '\u{1F431}', '\u{1F6B2}'], intrus: 2, hint: "Un n'est pas un v\u00E9hicule" },
+            { items: ['\u{1F431}', '\u{1F436}', '\u{1F34E}', '\u{1F430}'], intrus: 2, hint: "Un n'est pas un animal" },
+            { items: ['\u{1F534}', '\u{1F535}', '\u{1F7E2}', '\u{1F414}'], intrus: 3, hint: "Un n'est pas une couleur" },
+            { items: ['\u2600\uFE0F', '\u{1F319}', '\u2B50', '\u{1F333}'], intrus: 3, hint: "Un n'est pas dans le ciel" },
             { items: ['\u{1F6E9}\uFE0F', '\u{1F681}', '\u{1F680}', '\u{1F41F}'], intrus: 3, hint: 'Un ne vole pas' },
             { items: ['\u{1F352}', '\u{1F353}', '\u{1F951}', '\u{1F3E0}'], intrus: 3, hint: 'Un ne se mange pas' },
-            { items: ['\u{1F3B8}', '\u{1F3B9}', '\u{1F3BB}', '\u{1F4DA}'], intrus: 3, hint: 'Un n\'est pas un instrument' },
+            { items: ['\u{1F3B8}', '\u{1F3B9}', '\u{1F3BB}', '\u{1F4DA}'], intrus: 3, hint: "Un n'est pas un instrument" },
             { items: ['\u{1F45F}', '\u{1F462}', '\u{1F97E}', '\u{1F384}'], intrus: 3, hint: 'Un ne se porte pas aux pieds' },
-            { items: ['\u{1F436}', '\u{1F431}', '\u{1F42D}', '\u{1F697}'], intrus: 3, hint: 'Un n\'est pas un animal' },
-            { items: ['\u{1F4FA}', '\u{1F4BB}', '\u{1F4F1}', '\u{1F34E}'], intrus: 3, hint: 'Un n\'est pas \u00E9lectronique' },
-            { items: ['\u{1F33B}', '\u{1F337}', '\u{1F339}', '\u{1F40D}'], intrus: 3, hint: 'Un n\'est pas une fleur' },
-            { items: ['\u{1F955}', '\u{1F966}', '\u{1F952}', '\u{1F3A8}'], intrus: 3, hint: 'Un n\'est pas un l\u00E9gume' },
+            { items: ['\u{1F436}', '\u{1F431}', '\u{1F42D}', '\u{1F697}'], intrus: 3, hint: "Un n'est pas un animal" },
+            { items: ['\u{1F4FA}', '\u{1F4BB}', '\u{1F4F1}', '\u{1F34E}'], intrus: 3, hint: "Un n'est pas \u00E9lectronique" },
+            { items: ['\u{1F33B}', '\u{1F337}', '\u{1F339}', '\u{1F40D}'], intrus: 3, hint: "Un n'est pas une fleur" },
+            { items: ['\u{1F955}', '\u{1F966}', '\u{1F952}', '\u{1F3A8}'], intrus: 3, hint: "Un n'est pas un l\u00E9gume" },
             { items: ['\u{1F37A}', '\u{1F95B}', '\u{1F9C3}', '\u{1F4D6}'], intrus: 3, hint: 'Un ne se boit pas' },
-            { items: ['\u{1F40A}', '\u{1F422}', '\u{1F98E}', '\u{1F99C}'], intrus: 3, hint: 'Un n\'est pas un reptile' },
-            { items: ['\u{1FA91}', '\u{1F3E0}', '\u26FA', '\u{1F431}'], intrus: 3, hint: 'Un n\'est pas une habitation' }
+            { items: ['\u{1F40A}', '\u{1F422}', '\u{1F98E}', '\u{1F99C}'], intrus: 3, hint: "Un n'est pas un reptile" },
+            { items: ['\u{1FA91}', '\u{1F3E0}', '\u26FA', '\u{1F431}'], intrus: 3, hint: "Un n'est pas une habitation" },
+            { items: ['\u{1F6B2}', '\u{1F6F4}', '\u{1F3CD}\uFE0F', '\u{1F4D6}'], intrus: 3, hint: "Un n'a pas de roues" },
+            { items: ['\u{1F34A}', '\u{1F34B}', '\u{1F34E}', '\u{1F451}'], intrus: 3, hint: "Un n'est pas un fruit" },
+            { items: ['\u{1F40D}', '\u{1F41B}', '\u{1F98B}', '\u{1F697}'], intrus: 3, hint: "Un n'est pas un animal" },
+            { items: ['\u{1F56F}\uFE0F', '\u{1F4A1}', '\u2600\uFE0F', '\u{1F9F2}'], intrus: 3, hint: "Un ne donne pas de lumi\u00E8re" },
+            { items: ['\u{1F3B5}', '\u{1F3B6}', '\u{1F3B8}', '\u{1F4D0}'], intrus: 3, hint: "Un n'est pas li\u00E9 \u00E0 la musique" },
+            { items: ['\u{1F40C}', '\u{1F422}', '\u{1F98E}', '\u{1F985}'], intrus: 3, hint: "Un n'est pas lent" },
+            { items: ['\u{1F456}', '\u{1F455}', '\u{1F457}', '\u{1F4FA}'], intrus: 3, hint: "Un n'est pas un v\u00EAtement" },
+            { items: ['\u{1F370}', '\u{1F36A}', '\u{1F369}', '\u{1F955}'], intrus: 3, hint: "Un n'est pas sucr\u00E9" },
+            { items: ['\u{1F6BF}', '\u{1F6C1}', '\u{1F6BD}', '\u{1F333}'], intrus: 3, hint: "Un n'est pas dans la salle de bain" },
+            { items: ['\u2708\uFE0F', '\u{1F681}', '\u{1F680}', '\u{1F6A2}'], intrus: 3, hint: "Un ne vole pas" },
+            { items: ['\u{1F4CF}', '\u270F\uFE0F', '\u{1F58D}\uFE0F', '\u{1F34C}'], intrus: 3, hint: "Un n'est pas pour \u00E9crire" },
+            { items: ['\u{1F436}', '\u{1F431}', '\u{1F430}', '\u{1F40D}'], intrus: 3, hint: "Un n'a pas de poils" },
+            { items: ['\u{1F95A}', '\u{1F9C0}', '\u{1F95B}', '\u{1F3C0}'], intrus: 3, hint: "Un ne vient pas de la ferme" },
+            { items: ['\u{1F41D}', '\u{1F98B}', '\u{1F41E}', '\u{1F433}'], intrus: 3, hint: "Un n'est pas un insecte" },
+            { items: ['\u{1F4D5}', '\u{1F4D7}', '\u{1F4D8}', '\u26BD'], intrus: 3, hint: "Un n'est pas un livre" },
+            { items: ['\u{1F31E}', '\u{1F525}', '\u{1F4A1}', '\u{1F9CA}'], intrus: 3, hint: "Un n'est pas chaud" }
         ];
 
         const q78 = [
-            { items: ['\u{1F981}', '\u{1F405}', '\u{1F428}', '\u{1F408}'], intrus: 2, hint: 'Un n\'est pas un f\u00E9lin' },
-            { items: ['\u{1F40A}', '\u{1F422}', '\u{1F407}', '\u{1F98E}'], intrus: 2, hint: 'Un n\'est pas un reptile' },
-            { items: ['\u{1F433}', '\u{1F42C}', '\u{1F988}', '\u{1F41F}'], intrus: 3, hint: 'Un n\'est pas un mammif\u00E8re marin' },
-            { items: ['\u{1F34E}', '\u{1F34A}', '\u{1F955}', '\u{1F353}'], intrus: 2, hint: 'Un n\'est pas un fruit' },
-            { items: ['\u{1F1EB}\u{1F1F7}', '\u{1F1EA}\u{1F1F8}', '\u{1F1EE}\u{1F1F9}', '\u{1F1EF}\u{1F1F5}'], intrus: 3, hint: 'Un n\'est pas en Europe' },
-            { items: ['\u{1F3B9}', '\u{1F3B8}', '\u{1F3BB}', '\u{1F3A8}'], intrus: 3, hint: 'Un n\'est pas \u00E0 cordes' },
-            { items: ['\u2615', '\u{1F375}', '\u{1F9C3}', '\u{1F354}'], intrus: 3, hint: 'Un n\'est pas une boisson chaude' },
-            { items: ['\u{1F6F8}', '\u{1FA90}', '\u{1F30D}', '\u2B50'], intrus: 2, hint: 'Un n\'est pas dans l\'espace' },
-            { items: ['\u{1F40D}', '\u{1F98E}', '\u{1F422}', '\u{1F438}'], intrus: 3, hint: 'Un n\'est pas un reptile' },
-            { items: ['\u{1F3B7}', '\u{1F3BA}', '\u{1F941}', '\u{1F3B8}'], intrus: 3, hint: 'Un n\'est pas un instrument \u00E0 vent' },
-            { items: ['\u2764\uFE0F', '\u{1F499}', '\u{1F49B}', '\u{1F338}'], intrus: 3, hint: 'Un n\'est pas un c\u0153ur' },
-            { items: ['\u{1F980}', '\u{1F990}', '\u{1F99E}', '\u{1F426}'], intrus: 3, hint: 'Un n\'est pas un crustac\u00E9' },
-            { items: ['\u{1F34B}', '\u{1F34A}', '\u{1F95D}', '\u{1F34E}'], intrus: 2, hint: 'Un n\'est pas un agrume' },
+            { items: ['\u{1F981}', '\u{1F405}', '\u{1F428}', '\u{1F408}'], intrus: 2, hint: "Un n'est pas un f\u00E9lin" },
+            { items: ['\u{1F40A}', '\u{1F422}', '\u{1F407}', '\u{1F98E}'], intrus: 2, hint: "Un n'est pas un reptile" },
+            { items: ['\u{1F433}', '\u{1F42C}', '\u{1F988}', '\u{1F41F}'], intrus: 3, hint: "Un n'est pas un mammif\u00E8re marin" },
+            { items: ['\u{1F34E}', '\u{1F34A}', '\u{1F955}', '\u{1F353}'], intrus: 2, hint: "Un n'est pas un fruit" },
+            { items: ['\u{1F1EB}\u{1F1F7}', '\u{1F1EA}\u{1F1F8}', '\u{1F1EE}\u{1F1F9}', '\u{1F1EF}\u{1F1F5}'], intrus: 3, hint: "Un n'est pas en Europe" },
+            { items: ['\u{1F3B9}', '\u{1F3B8}', '\u{1F3BB}', '\u{1F3A8}'], intrus: 3, hint: "Un n'est pas \u00E0 cordes" },
+            { items: ['\u2615', '\u{1F375}', '\u{1F9C3}', '\u{1F354}'], intrus: 3, hint: "Un n'est pas une boisson chaude" },
+            { items: ['\u{1F6F8}', '\u{1FA90}', '\u{1F30D}', '\u2B50'], intrus: 2, hint: "Un n'est pas dans l'espace" },
+            { items: ['\u{1F40D}', '\u{1F98E}', '\u{1F422}', '\u{1F438}'], intrus: 3, hint: "Un n'est pas un reptile" },
+            { items: ['\u{1F3B7}', '\u{1F3BA}', '\u{1F941}', '\u{1F3B8}'], intrus: 3, hint: "Un n'est pas un instrument \u00E0 vent" },
+            { items: ['\u2764\uFE0F', '\u{1F499}', '\u{1F49B}', '\u{1F338}'], intrus: 3, hint: "Un n'est pas un c\u0153ur" },
+            { items: ['\u{1F980}', '\u{1F990}', '\u{1F99E}', '\u{1F426}'], intrus: 3, hint: "Un n'est pas un crustac\u00E9" },
+            { items: ['\u{1F34B}', '\u{1F34A}', '\u{1F95D}', '\u{1F34E}'], intrus: 2, hint: "Un n'est pas un agrume" },
             { items: ['\u{1F697}', '\u{1F3CE}\uFE0F', '\u{1F69A}', '\u{1F6A2}'], intrus: 3, hint: 'Un ne roule pas' },
-            { items: ['\u{1F333}', '\u{1F332}', '\u{1F334}', '\u{1F335}'], intrus: 3, hint: 'Un n\'est pas un arbre' },
-            { items: ['\u{1F314}', '\u{1F31E}', '\u{1FA90}', '\u{1F30D}'], intrus: 3, hint: 'Un n\'est pas lumineux par lui-m\u00EAme' }
+            { items: ['\u{1F333}', '\u{1F332}', '\u{1F334}', '\u{1F335}'], intrus: 3, hint: "Un n'est pas un arbre" },
+            { items: ['\u{1F314}', '\u{1F31E}', '\u{1FA90}', '\u{1F30D}'], intrus: 3, hint: "Un n'est pas lumineux par lui-m\u00EAme" },
+            { items: ['\u{1F987}', '\u{1F985}', '\u{1F99A}', '\u{1F422}'], intrus: 3, hint: "Un ne vole pas" },
+            { items: ['\u{1F3C0}', '\u26BD', '\u{1F3BE}', '\u{1F3B9}'], intrus: 3, hint: "Un n'est pas un sport" },
+            { items: ['\u{1F4D0}', '\u{1F4CF}', '\u{1F4D0}', '\u{1F3A8}'], intrus: 3, hint: "Un n'est pas un outil de g\u00E9om\u00E9trie" },
+            { items: ['\u{1F9C1}', '\u{1F370}', '\u{1F36B}', '\u{1F9C5}'], intrus: 3, hint: "Un n'est pas un dessert" },
+            { items: ['\u{1F3DF}\uFE0F', '\u{1F3DB}\uFE0F', '\u{1F3E0}', '\u{1F333}'], intrus: 3, hint: "Un n'est pas un b\u00E2timent" },
+            { items: ['\u{1F9F2}', '\u26A1', '\u{1F4A1}', '\u{1F952}'], intrus: 3, hint: "Un n'est pas li\u00E9 \u00E0 l'\u00E9lectricit\u00E9" },
+            { items: ['\u{1F30A}', '\u{1F3CA}', '\u{1F6A3}', '\u{1F3C7}'], intrus: 3, hint: "Un n'est pas un sport aquatique" },
+            { items: ['\u{1F1EC}\u{1F1E7}', '\u{1F1FA}\u{1F1F8}', '\u{1F1E8}\u{1F1E6}', '\u{1F1EE}\u{1F1F9}'], intrus: 3, hint: "Un n'est pas anglophone" },
+            { items: ['\u{1F40C}', '\u{1F422}', '\u{1F9A5}', '\u{1F406}'], intrus: 3, hint: "Un n'est pas lent" },
+            { items: ['\u{1F9C0}', '\u{1F95B}', '\u{1F9C8}', '\u{1F36C}'], intrus: 3, hint: "Un n'est pas un produit laitier" },
+            { items: ['\u{1F3B7}', '\u{1F3BA}', '\u{1F3B8}', '\u{1F3BB}'], intrus: 0, hint: "Un n'est pas un instrument \u00E0 cordes" },
+            { items: ['\u{1F9CA}', '\u2744\uFE0F', '\u{1F328}\uFE0F', '\u{1F525}'], intrus: 3, hint: "Un n'est pas froid" },
+            { items: ['\u{1F965}', '\u{1F34D}', '\u{1F95D}', '\u{1F955}'], intrus: 3, hint: "Un n'est pas un fruit tropical" },
+            { items: ['\u{1F3A8}', '\u{1F58C}\uFE0F', '\u{1F58D}\uFE0F', '\u{1F52C}'], intrus: 3, hint: "Un n'est pas pour dessiner" },
+            { items: ['\u{1F99C}', '\u{1F985}', '\u{1F426}', '\u{1F41F}'], intrus: 3, hint: "Un n'est pas un oiseau" },
+            { items: ['\u{1F697}', '\u{1F68C}', '\u{1F69A}', '\u{1F681}'], intrus: 3, hint: "Un ne roule pas sur la route" }
         ];
 
         const q910 = [
-            { items: ['2\uFE0F\u20E3', '3\uFE0F\u20E3', '5\uFE0F\u20E3', '9\uFE0F\u20E3'], intrus: 3, hint: 'Un n\'est pas un nombre premier' },
-            { items: ['\u{1F433}', '\u{1F42C}', '\u{1F988}', '\u{1F41F}'], intrus: 3, hint: 'Un n\'est pas un mammif\u00E8re' },
-            { items: ['\u{1F1EB}\u{1F1F7}', '\u{1F1E9}\u{1F1EA}', '\u{1F1EE}\u{1F1F9}', '\u{1F1E7}\u{1F1F7}'], intrus: 3, hint: 'Un n\'est pas en Europe' },
-            { items: ['\u2600\uFE0F', '\u{1F30D}', '\u{1FA90}', '\u2B50'], intrus: 1, hint: 'Un n\'est pas une \u00E9toile' },
-            { items: ['\u{1F34E}', '\u{1F345}', '\u{1F352}', '\u{1F955}'], intrus: 3, hint: 'Un n\'est pas rouge' },
-            { items: ['\u2744\uFE0F', '\u{1F9CA}', '\u{1F525}', '\u{1F328}\uFE0F'], intrus: 2, hint: 'Un n\'est pas froid' },
-            { items: ['\u{1F40D}', '\u{1F98E}', '\u{1F40A}', '\u{1F430}'], intrus: 3, hint: 'Un n\'est pas \u00E0 sang froid' },
-            { items: ['\u{1F3B9}', '\u{1F3B7}', '\u{1F3BA}', '\u{1F3B5}'], intrus: 0, hint: 'Un n\'est pas un instrument \u00E0 vent' },
-            { items: ['\u{1F4D0}', '\u{1F4D0}', '\u{1F4D0}', '\u26BD'], intrus: 3, hint: 'Un n\'a pas d\'angles' },
-            { items: ['\u{1F1EF}\u{1F1F5}', '\u{1F1E8}\u{1F1F3}', '\u{1F1F0}\u{1F1F7}', '\u{1F1EB}\u{1F1F7}'], intrus: 3, hint: 'Un n\'est pas en Asie' },
-            { items: ['\u{1F30B}', '\u{1F3D4}\uFE0F', '\u{1F30A}', '\u{1F3D4}\uFE0F'], intrus: 2, hint: 'Un n\'est pas sur terre' },
-            { items: ['Au', 'Ag', 'Fe', 'H\u2082O'], intrus: 3, hint: 'Un n\'est pas un \u00E9l\u00E9ment chimique' },
-            { items: ['\u{1F1EA}\u{1F1EC}', '\u{1F1EC}\u{1F1F7}', '\u{1F1EE}\u{1F1F9}', '\u{1F1E6}\u{1F1FA}'], intrus: 3, hint: 'Un n\'est pas m\u00E9diterran\u00E9en' },
-            { items: ['\u{1F40B}', '\u{1F42C}', '\u{1F9AD}', '\u{1F41F}'], intrus: 3, hint: 'Un n\'est pas un mammif\u00E8re' },
-            { items: ['\u{1F314}', '\u{1FA90}', '\u{1F30C}', '\u{1F30D}'], intrus: 3, hint: 'Un n\'est pas un astre' },
-            { items: ['\u26A1', '\u{1F4A8}', '\u2600\uFE0F', '\u{1F6E2}\uFE0F'], intrus: 3, hint: 'Un n\'est pas une \u00E9nergie renouvelable' }
+            { items: ['2\uFE0F\u20E3', '3\uFE0F\u20E3', '5\uFE0F\u20E3', '9\uFE0F\u20E3'], intrus: 3, hint: "Un n'est pas un nombre premier" },
+            { items: ['\u{1F433}', '\u{1F42C}', '\u{1F988}', '\u{1F41F}'], intrus: 3, hint: "Un n'est pas un mammif\u00E8re" },
+            { items: ['\u{1F1EB}\u{1F1F7}', '\u{1F1E9}\u{1F1EA}', '\u{1F1EE}\u{1F1F9}', '\u{1F1E7}\u{1F1F7}'], intrus: 3, hint: "Un n'est pas en Europe" },
+            { items: ['\u2600\uFE0F', '\u{1F30D}', '\u{1FA90}', '\u2B50'], intrus: 1, hint: "Un n'est pas une \u00E9toile" },
+            { items: ['\u{1F34E}', '\u{1F345}', '\u{1F352}', '\u{1F955}'], intrus: 3, hint: "Un n'est pas rouge" },
+            { items: ['\u2744\uFE0F', '\u{1F9CA}', '\u{1F525}', '\u{1F328}\uFE0F'], intrus: 2, hint: "Un n'est pas froid" },
+            { items: ['\u{1F40D}', '\u{1F98E}', '\u{1F40A}', '\u{1F430}'], intrus: 3, hint: "Un n'est pas \u00E0 sang froid" },
+            { items: ['\u{1F3B9}', '\u{1F3B7}', '\u{1F3BA}', '\u{1F3B5}'], intrus: 0, hint: "Un n'est pas un instrument \u00E0 vent" },
+            { items: ['\u{1F4D0}', '\u{1F4D0}', '\u{1F4D0}', '\u26BD'], intrus: 3, hint: "Un n'a pas d'angles" },
+            { items: ['\u{1F1EF}\u{1F1F5}', '\u{1F1E8}\u{1F1F3}', '\u{1F1F0}\u{1F1F7}', '\u{1F1EB}\u{1F1F7}'], intrus: 3, hint: "Un n'est pas en Asie" },
+            { items: ['\u{1F30B}', '\u{1F3D4}\uFE0F', '\u{1F30A}', '\u{1F3D4}\uFE0F'], intrus: 2, hint: "Un n'est pas sur terre" },
+            { items: ['Au', 'Ag', 'Fe', 'H\u2082O'], intrus: 3, hint: "Un n'est pas un \u00E9l\u00E9ment chimique" },
+            { items: ['\u{1F1EA}\u{1F1EC}', '\u{1F1EC}\u{1F1F7}', '\u{1F1EE}\u{1F1F9}', '\u{1F1E6}\u{1F1FA}'], intrus: 3, hint: "Un n'est pas m\u00E9diterran\u00E9en" },
+            { items: ['\u{1F40B}', '\u{1F42C}', '\u{1F9AD}', '\u{1F41F}'], intrus: 3, hint: "Un n'est pas un mammif\u00E8re" },
+            { items: ['\u{1F314}', '\u{1FA90}', '\u{1F30C}', '\u{1F30D}'], intrus: 3, hint: "Un n'est pas un astre" },
+            { items: ['\u26A1', '\u{1F4A8}', '\u2600\uFE0F', '\u{1F6E2}\uFE0F'], intrus: 3, hint: "Un n'est pas une \u00E9nergie renouvelable" },
+            { items: ['O\u2082', 'N\u2082', 'CO\u2082', 'H\u2082O'], intrus: 3, hint: "Un n'est pas un gaz" },
+            { items: ['\u{1F9ED}', '\u{1F52D}', '\u{1F52C}', '\u{1F3A8}'], intrus: 3, hint: "Un n'est pas un instrument scientifique" },
+            { items: ['\u{1F1EF}\u{1F1F5}', '\u{1F1F0}\u{1F1F7}', '\u{1F1E8}\u{1F1F3}', '\u{1F1E7}\u{1F1EA}'], intrus: 3, hint: "Un n'est pas en Asie" },
+            { items: ['\u{1F48E}', '\u{1F947}', '\u{1F948}', '\u{1F4D5}'], intrus: 3, hint: "Un n'est pas pr\u00E9cieux" },
+            { items: ['\u{1F9E0}', '\u2764\uFE0F', '\u{1FAC1}', '\u{1F4D0}'], intrus: 3, hint: "Un n'est pas un organe" },
+            { items: ['\u{1F1EC}\u{1F1E7}', '\u{1F1FA}\u{1F1F8}', '\u{1F1E6}\u{1F1FA}', '\u{1F1E7}\u{1F1F7}'], intrus: 3, hint: "Un n'est pas anglophone" },
+            { items: ['\u{1F30B}', '\u{1F3D4}\uFE0F', '\u{1F3DC}\uFE0F', '\u{1F30A}'], intrus: 3, hint: "Un n'est pas un relief terrestre" },
+            { items: ['\u{1F9EA}', '\u{1F52C}', '\u{1F9EC}', '\u{1F3B8}'], intrus: 3, hint: "Un n'est pas li\u00E9 aux sciences" },
+            { items: ['Fe', 'Cu', 'Au', 'H'], intrus: 3, hint: "Un n'est pas un m\u00E9tal" },
+            { items: ['\u{1F40B}', '\u{1F418}', '\u{1F993}', '\u{1F41C}'], intrus: 3, hint: "Un n'est pas un grand animal" },
+            { items: ['\u{1F3C8}', '\u{1F3C0}', '\u26BD', '\u265F\uFE0F'], intrus: 3, hint: "Un n'est pas un sport de terrain" },
+            { items: ['\u{1F1EE}\u{1F1F3}', '\u{1F1E8}\u{1F1F3}', '\u{1F1F7}\u{1F1FA}', '\u{1F1E8}\u{1F1ED}'], intrus: 3, hint: "Un n'a pas plus d'un milliard d'habitants" },
+            { items: ['\u{1F342}', '\u{1F343}', '\u{1F33F}', '\u{1F525}'], intrus: 3, hint: "Un n'est pas une feuille" },
+            { items: ['100', '144', '169', '150'], intrus: 3, hint: "Un n'est pas un carr\u00E9 parfait" },
+            { items: ['\u{1F9D1}\u200D\u{1F52C}', '\u{1F9D1}\u200D\u{1F3EB}', '\u{1F9D1}\u200D\u2695\uFE0F', '\u{1F3B5}'], intrus: 3, hint: "Un n'est pas un m\u00E9tier" },
+            { items: ['\u{1F30D}', '\u{1FA90}', '\u2B50', '\u{1F4A1}'], intrus: 3, hint: "Un n'est pas un corps c\u00E9leste" }
         ];
-
         if (this.age <= 6) return q56;
         if (this.age <= 8) return q78;
         return q910;
@@ -2407,7 +2782,7 @@ class TrueOrFalse {
             { statement: 'Le chat fait "Miaou"', answer: true, emoji: '\u{1F431}' },
             { statement: 'La neige est chaude', answer: false, emoji: '\u2744\uFE0F' },
             { statement: 'Le soleil brille la nuit', answer: false, emoji: '\u{1F31E}' },
-            { statement: 'Les poissons vivent dans l\'eau', answer: true, emoji: '\u{1F41F}' },
+            { statement: "Les poissons vivent dans l'eau", answer: true, emoji: '\u{1F41F}' },
             { statement: 'Les oiseaux ont des ailes', answer: true, emoji: '\u{1F426}' },
             { statement: 'La banane est bleue', answer: false, emoji: '\u{1F34C}' },
             { statement: 'Le chien fait "Ouaf"', answer: true, emoji: '\u{1F436}' },
@@ -2419,18 +2794,42 @@ class TrueOrFalse {
             { statement: 'Les lapins volent', answer: false, emoji: '\u{1F430}' },
             { statement: 'Le feu est froid', answer: false, emoji: '\u{1F525}' },
             { statement: 'On dort dans un lit', answer: true, emoji: '\u{1F6CF}\uFE0F' },
-            { statement: 'Les \u00E9l\u00E9phants sont petits', answer: false, emoji: '\u{1F418}' }
+            { statement: 'Les \u00E9l\u00E9phants sont petits', answer: false, emoji: '\u{1F418}' },
+            { statement: 'Les poules ont des dents', answer: false, emoji: '\u{1F414}' },
+            { statement: 'Le chocolat est fait avec du cacao', answer: true, emoji: '\u{1F36B}' },
+            { statement: "L'escargot est rapide", answer: false, emoji: '\u{1F40C}' },
+            { statement: "L'eau de la mer est sal\u00E9e", answer: true, emoji: '\u{1F30A}' },
+            { statement: 'Les carottes sont orange', answer: true, emoji: '\u{1F955}' },
+            { statement: 'Les v\u00E9los ont un moteur', answer: false, emoji: '\u{1F6B2}' },
+            { statement: 'Les vaches donnent du lait', answer: true, emoji: '\u{1F404}' },
+            { statement: 'On peut voir les \u00E9toiles le jour', answer: false, emoji: '\u2B50' },
+            { statement: 'Le z\u00E8bre a des rayures', answer: true, emoji: '\u{1F993}' },
+            { statement: 'Les serpents ont des pattes', answer: false, emoji: '\u{1F40D}' },
+            { statement: 'La Terre est ronde', answer: true, emoji: '\u{1F30D}' },
+            { statement: "L'arc-en-ciel est tout gris", answer: false, emoji: '\u{1F308}' },
+            { statement: 'Les papillons \u00E9taient des chenilles', answer: true, emoji: '\u{1F98B}' },
+            { statement: 'Un carr\u00E9 a 4 c\u00F4t\u00E9s \u00E9gaux', answer: true, emoji: '\u{1F7E6}' },
+            { statement: 'Les crocodiles vivent au P\u00F4le Nord', answer: false, emoji: '\u{1F40A}' },
+            { statement: "Les pommes poussent sur des arbres", answer: true, emoji: '\u{1F34E}' },
+            { statement: 'Le miel est fabriqu\u00E9 par les fourmis', answer: false, emoji: '\u{1F41D}' },
+            { statement: 'On respire avec les poumons', answer: true, emoji: '\u{1FAC1}' },
+            { statement: 'Les chats adorent nager', answer: false, emoji: '\u{1F431}' },
+            { statement: "Les baleines sont des poissons", answer: false, emoji: '\u{1F433}' },
+            { statement: 'Le pain est fait avec de la farine', answer: true, emoji: '\u{1F956}' },
+            { statement: "Les kangourous vivent en Afrique", answer: false, emoji: '\u{1F998}' },
+            { statement: "Les tortues ont une carapace", answer: true, emoji: '\u{1F422}' },
+            { statement: "Les nuages sont faits de coton", answer: false, emoji: '\u2601\uFE0F' }
         ];
 
         const q78 = [
             { statement: 'La Terre tourne autour du Soleil', answer: true, emoji: '\u{1F30D}' },
-            { statement: 'L\'eau bout \u00E0 100\u00B0C', answer: true, emoji: '\u{1F321}\uFE0F' },
+            { statement: "L'eau bout \u00E0 100\u00B0C", answer: true, emoji: '\u{1F321}\uFE0F' },
             { statement: 'Les araign\u00E9es ont 6 pattes', answer: false, emoji: '\u{1F577}\uFE0F' },
             { statement: 'Paris est la capitale de la France', answer: true, emoji: '\u{1F1EB}\u{1F1F7}' },
             { statement: 'Le son voyage plus vite que la lumi\u00E8re', answer: false, emoji: '\u{1F4A1}' },
             { statement: 'Les plantes ont besoin de lumi\u00E8re pour pousser', answer: true, emoji: '\u{1F331}' },
             { statement: 'La baleine est un poisson', answer: false, emoji: '\u{1F433}' },
-            { statement: 'L\'oc\u00E9an Pacifique est le plus grand', answer: true, emoji: '\u{1F30A}' },
+            { statement: "L'oc\u00E9an Pacifique est le plus grand", answer: true, emoji: '\u{1F30A}' },
             { statement: 'Les dinosaures existent encore', answer: false, emoji: '\u{1F995}' },
             { statement: 'Le c\u0153ur a 4 cavit\u00E9s', answer: true, emoji: '\u2764\uFE0F' },
             { statement: 'Les champignons sont des plantes', answer: false, emoji: '\u{1F344}' },
@@ -2438,16 +2837,40 @@ class TrueOrFalse {
             { statement: 'Un hexagone a 6 c\u00F4t\u00E9s', answer: true, emoji: '\u2B22' },
             { statement: 'Les dauphins sont des mammif\u00E8res', answer: true, emoji: '\u{1F42C}' },
             { statement: 'Le Sahara est le plus grand d\u00E9sert du monde', answer: false, emoji: '\u{1F3DC}\uFE0F' },
-            { statement: 'Les \u00E9toiles sont des boules de gaz br\u00FBlant', answer: true, emoji: '\u2B50' }
+            { statement: 'Les \u00E9toiles sont des boules de gaz br\u00FBlant', answer: true, emoji: '\u2B50' },
+            { statement: 'Le f\u00E9mur est le plus long os du corps', answer: true, emoji: '\u{1F9B4}' },
+            { statement: "Les pingouins vivent au P\u00F4le Nord", answer: false, emoji: '\u{1F427}' },
+            { statement: "La lumi\u00E8re du soleil met 8 minutes pour atteindre la Terre", answer: true, emoji: '\u2600\uFE0F' },
+            { statement: "Les \u00E9clairs se produisent avant le tonnerre", answer: true, emoji: '\u26A1' },
+            { statement: "Les humains ont 5 sens", answer: true, emoji: '\u{1F442}' },
+            { statement: "Les autruches peuvent voler", answer: false, emoji: '\u{1F426}' },
+            { statement: "Le Nil est le plus long fleuve d'Afrique", answer: true, emoji: '\u{1F3DE}\uFE0F' },
+            { statement: "Les os des b\u00E9b\u00E9s sont plus nombreux que ceux des adultes", answer: true, emoji: '\u{1F476}' },
+            { statement: "Mars a deux lunes", answer: true, emoji: '\u{1FA90}' },
+            { statement: "Les tomates sont des l\u00E9gumes", answer: false, emoji: '\u{1F345}' },
+            { statement: "La Grande Muraille de Chine est le plus long mur du monde", answer: true, emoji: '\u{1F9F1}' },
+            { statement: "Les requins doivent nager pour respirer", answer: true, emoji: '\u{1F988}' },
+            { statement: "Le sang est bleu dans les veines", answer: false, emoji: '\u{1FA78}' },
+            { statement: "Un an sur Jupiter dure environ 12 ans terrestres", answer: true, emoji: '\u{1FA90}' },
+            { statement: "Les chauves-souris sont aveugles", answer: false, emoji: '\u{1F987}' },
+            { statement: "Le Mont Blanc est le plus haut sommet d'Europe", answer: true, emoji: '\u{1F3D4}\uFE0F' },
+            { statement: "Les poissons rouges ont une m\u00E9moire de 3 secondes", answer: false, emoji: '\u{1F41F}' },
+            { statement: "L'Amazone est le fleuve le plus long du monde", answer: true, emoji: '\u{1F30A}' },
+            { statement: "Les coccinelles sont des col\u00E9opt\u00E8res", answer: true, emoji: '\u{1F41E}' },
+            { statement: "La banane est une herbe", answer: true, emoji: '\u{1F34C}' },
+            { statement: "Le diamant est fait de carbone", answer: true, emoji: '\u{1F48E}' },
+            { statement: "Les girafes dorment 8 heures par nuit", answer: false, emoji: '\u{1F992}' },
+            { statement: "La peau est le plus grand organe du corps humain", answer: true, emoji: '\u{1F9EC}' },
+            { statement: "Les serpents ont des oreilles visibles", answer: false, emoji: '\u{1F40D}' }
         ];
 
         const q910 = [
-            { statement: 'La Grande Muraille de Chine est visible depuis l\'espace', answer: false, emoji: '\u{1F9F1}' },
+            { statement: "La Grande Muraille de Chine est visible depuis l'espace", answer: false, emoji: '\u{1F9F1}' },
             { statement: 'La lumi\u00E8re voyage \u00E0 300 000 km/s', answer: true, emoji: '\u26A1' },
             { statement: 'Les humains utilisent seulement 10% de leur cerveau', answer: false, emoji: '\u{1F9E0}' },
             { statement: 'V\u00E9nus est la plan\u00E8te la plus chaude du syst\u00E8me solaire', answer: true, emoji: '\u{1FA90}' },
-            { statement: 'L\'ADN a la forme d\'une double h\u00E9lice', answer: true, emoji: '\u{1F9EC}' },
-            { statement: 'L\'oxyg\u00E8ne est le gaz le plus abondant dans l\'atmosph\u00E8re', answer: false, emoji: '\u{1F32C}\uFE0F' },
+            { statement: "L'ADN a la forme d'une double h\u00E9lice", answer: true, emoji: '\u{1F9EC}' },
+            { statement: "L'oxyg\u00E8ne est le gaz le plus abondant dans l'atmosph\u00E8re", answer: false, emoji: '\u{1F32C}\uFE0F' },
             { statement: 'Les \u00E9clairs sont plus chauds que la surface du soleil', answer: true, emoji: '\u26A1' },
             { statement: 'Napol\u00E9on \u00E9tait tr\u00E8s petit', answer: false, emoji: '\u{1F451}' },
             { statement: 'Un kilom\u00E8tre fait 1000 m\u00E8tres', answer: true, emoji: '\u{1F4CF}' },
@@ -2457,9 +2880,32 @@ class TrueOrFalse {
             { statement: 'Jupiter est la plus grande plan\u00E8te du syst\u00E8me solaire', answer: true, emoji: '\u{1FA90}' },
             { statement: 'Les cha\u00EEnes de montagnes se forment par les plaques tectoniques', answer: true, emoji: '\u{1F3D4}\uFE0F' },
             { statement: 'La temp\u00E9rature la plus basse possible est -273,15\u00B0C', answer: true, emoji: '\u{1F321}\uFE0F' },
-            { statement: 'Les requins sont des mammif\u00E8res', answer: false, emoji: '\u{1F988}' }
+            { statement: 'Les requins sont des mammif\u00E8res', answer: false, emoji: '\u{1F988}' },
+            { statement: "Le son ne se propage pas dans le vide", answer: true, emoji: '\u{1F50A}' },
+            { statement: "Les \u00E9lectrons sont plus gros que les protons", answer: false, emoji: '\u269B\uFE0F' },
+            { statement: "La photosynth\u00E8se produit de l'oxyg\u00E8ne", answer: true, emoji: '\u{1F33F}' },
+            { statement: "Le mercure est le seul m\u00E9tal liquide \u00E0 temp\u00E9rature ambiante", answer: true, emoji: '\u{1F321}\uFE0F' },
+            { statement: "Les chameaux stockent de l'eau dans leurs bosses", answer: false, emoji: '\u{1F42A}' },
+            { statement: "La Terre est la 3\u00E8me plan\u00E8te du syst\u00E8me solaire", answer: true, emoji: '\u{1F30D}' },
+            { statement: "Le c\u0153ur humain bat environ 100 000 fois par jour", answer: true, emoji: '\u2764\uFE0F' },
+            { statement: "Les \u00E9ponges sont des animaux", answer: true, emoji: '\u{1F9FD}' },
+            { statement: "Le pH de l'eau pure est de 14", answer: false, emoji: '\u{1F4A7}' },
+            { statement: "La Lune s'\u00E9loigne de la Terre chaque ann\u00E9e", answer: true, emoji: '\u{1F319}' },
+            { statement: "Les plantes respirent aussi la nuit", answer: true, emoji: '\u{1F33F}' },
+            { statement: "L'estomac produit un nouvel acide toutes les 2 semaines", answer: false, emoji: '\u{1F9EA}' },
+            { statement: "Pluton est toujours consid\u00E9r\u00E9e comme une plan\u00E8te", answer: false, emoji: '\u{1FA90}' },
+            { statement: "La vitesse du son est d'environ 340 m/s dans l'air", answer: true, emoji: '\u{1F50A}' },
+            { statement: "Les empreintes digitales de chaque personne sont uniques", answer: true, emoji: '\u{1F91A}' },
+            { statement: "Le verre est un liquide tr\u00E8s visqueux", answer: false, emoji: '\u{1FAA9}' },
+            { statement: "La Voie Lact\u00E9e contient environ 200 milliards d'\u00E9toiles", answer: true, emoji: '\u{1F30C}' },
+            { statement: "Les globules rouges n'ont pas de noyau", answer: true, emoji: '\u{1FA78}' },
+            { statement: "L'or est le m\u00E9tal le plus conducteur", answer: false, emoji: '\u{1F947}' },
+            { statement: "Un atome est principalement constitu\u00E9 de vide", answer: true, emoji: '\u269B\uFE0F' },
+            { statement: "Les ondes radio voyagent \u00E0 la vitesse de la lumi\u00E8re", answer: true, emoji: '\u{1F4FB}' },
+            { statement: "Il fait plus froid au P\u00F4le Sud qu'au P\u00F4le Nord", answer: true, emoji: '\u{1F9CA}' },
+            { statement: "Les araign\u00E9es sont des insectes", answer: false, emoji: '\u{1F577}\uFE0F' },
+            { statement: "Le titane est plus l\u00E9ger que l'acier", answer: true, emoji: '\u2699\uFE0F' }
         ];
-
         let pool;
         if (this.age <= 6) pool = q56;
         else if (this.age <= 8) pool = q78;

@@ -177,6 +177,36 @@ body {
 /* ---------- Welcome Screen ---------- */
 #welcome-screen {
     flex-direction: column;
+    position: relative;
+}
+
+.music-toggle-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 100;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(8px);
+    font-size: 1.4rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.15s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.music-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.4);
+    transform: scale(1.1);
+}
+
+.music-toggle-btn:active {
+    transform: scale(0.95);
 }
 
 .welcome-content {
