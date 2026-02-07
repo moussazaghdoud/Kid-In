@@ -43,6 +43,7 @@
 html, body {
     width: 100%;
     min-height: 100vh;
+    min-height: 100dvh;
     overflow-x: hidden;
     font-family: var(--font-body);
     color: var(--color-text);
@@ -51,6 +52,8 @@ html, body {
 body {
     background: linear-gradient(135deg, var(--color-bg-start), var(--color-bg-end));
     background-attachment: fixed;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
 }
 
 /* ---------- Floating Background Shapes ---------- */
@@ -148,7 +151,9 @@ body {
 .screen {
     position: fixed;
     top: 0; left: 0;
-    width: 100%; height: 100%;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -277,6 +282,7 @@ body {
     justify-content: center;
     gap: 15px;
     margin-bottom: 40px;
+    flex-wrap: wrap;
 }
 
 .emoji-bounce {
@@ -302,6 +308,8 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 .intrus-item, .vf-btn, .cs-circle, .color-swatch, .brush-size-btn,
 .tool-btn, .letter-tile, .switch-game-btn {
     touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 /* ---------- Buttons ---------- */
@@ -333,6 +341,7 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 .btn-xl {
     font-size: 1.6rem;
     padding: 20px 65px;
+    max-width: 90vw;
 }
 
 .btn-secondary {
@@ -624,6 +633,11 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
     flex-direction: column;
     align-items: stretch;
     padding: 0;
+}
+
+/* When MP score header is visible, push game screen content down */
+body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
+    padding-top: max(55px, calc(env(safe-area-inset-top) + 50px));
 }
 
 .game-header {
@@ -999,12 +1013,14 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 }
 
 .color-swatch {
-    width: 35px;
-    height: 35px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     border: 3px solid transparent;
     cursor: pointer;
     transition: all 0.2s ease;
+    min-width: 40px;
+    min-height: 40px;
 }
 
 .color-swatch:hover {
@@ -1142,12 +1158,15 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 .modal {
     position: fixed;
     top: 0; left: 0;
-    width: 100%; height: 100%;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
     z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: opacity 0.4s ease, visibility 0.4s ease;
+    padding: 10px;
 }
 
 .modal.hidden {
@@ -1375,37 +1394,161 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 
 /* -- Small phones (up to 600px) -- */
 @media (max-width: 600px) {
-    .age-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 15px;
+    /* Screen & layout */
+    .screen-content {
+        padding: 15px;
     }
 
+    /* Welcome screen */
+    .logo {
+        letter-spacing: 2px;
+    }
+
+    .tagline {
+        margin-bottom: 15px;
+    }
+
+    .welcome-emojis {
+        gap: 10px;
+        margin-bottom: 25px;
+    }
+
+    .emoji-bounce {
+        font-size: 2rem;
+    }
+
+    .btn-xl {
+        font-size: 1.3rem;
+        padding: 16px 45px;
+    }
+
+    .btn-primary {
+        padding: 14px 35px;
+        font-size: 1.1rem;
+    }
+
+    /* Age selection */
+    .age-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .age-btn {
+        padding: 18px 10px;
+    }
+
+    .age-number {
+        font-size: 2rem;
+    }
+
+    .age-emoji {
+        font-size: 1.6rem;
+    }
+
+    .screen-subtitle {
+        font-size: 0.95rem;
+        margin-bottom: 25px;
+    }
+
+    /* Game menu */
     .games-grid {
         grid-template-columns: 1fr;
-        gap: 15px;
+        gap: 12px;
+    }
+
+    .game-card {
+        padding: 18px 15px;
+    }
+
+    .card-icon {
+        font-size: 2.8rem;
+        margin-bottom: 8px;
+    }
+
+    .card-title {
+        font-size: 1.05rem;
+    }
+
+    .card-desc {
+        font-size: 0.85rem;
     }
 
     .menu-header {
         flex-direction: column;
         text-align: center;
+        margin-bottom: 20px;
+        gap: 8px;
     }
 
+    /* Game screen header */
     .game-header {
-        padding: 10px 15px;
+        padding: 10px 12px;
         padding-top: max(10px, env(safe-area-inset-top));
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: 8px;
     }
 
     .game-title-text {
+        font-size: 0.9rem;
+    }
+
+    .game-info {
+        gap: 6px;
+        flex-shrink: 0;
+    }
+
+    .game-score {
+        padding: 4px 10px;
+    }
+
+    #game-score-value {
         font-size: 0.95rem;
     }
 
+    .game-progress {
+        font-size: 0.8rem;
+    }
+
+    .btn-back {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+
+    /* Game container */
+    .game-container {
+        padding: 12px 10px;
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+
+    /* Questions & answers */
+    .question-display {
+        padding: 16px;
+        margin-bottom: 15px;
+        border-radius: var(--radius-sm);
+    }
+
+    .question-emoji {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+    }
+
+    .answers-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .answer-btn {
+        padding: 14px 16px;
+    }
+
+    /* Modal */
     .modal-content {
-        padding: 25px 20px;
+        padding: 22px 18px;
         max-height: 85vh;
         max-height: 85dvh;
         width: 94%;
+        border-radius: var(--radius-md);
     }
 
     .result-modal-content {
@@ -1413,55 +1556,108 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
         max-height: 85dvh;
     }
 
+    .result-stars {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+        min-height: 2.8rem;
+    }
+
     .result-title {
-        font-size: 1.5rem;
+        font-size: 1.4rem;
     }
 
-    .answers-grid {
-        grid-template-columns: 1fr;
+    .result-message {
+        font-size: 1rem;
     }
 
-    .question-display {
-        padding: 20px;
-        margin-bottom: 20px;
+    .modal-buttons {
+        gap: 10px;
     }
 
-    .question-emoji {
-        font-size: 3rem;
+    .modal-buttons .btn-primary,
+    .modal-buttons .btn-secondary {
+        font-size: 0.9rem;
+        padding: 12px 24px;
     }
 
-    .draw-toolbar {
-        padding: 10px 12px;
-        gap: 8px;
-    }
-
+    /* Memory game */
     .memory-grid {
-        gap: 8px;
+        gap: 6px;
+        max-width: 100%;
     }
 
-    .game-container {
-        padding: 15px 12px;
+    .memory-card-back {
+        font-size: 1.4rem;
     }
 
-    .game-info {
-        gap: 8px;
+    .memory-stats {
+        gap: 12px;
+        margin-bottom: 12px;
     }
 
-    .btn-back {
-        padding: 8px 14px;
+    .memory-stat {
+        padding: 6px 12px;
         font-size: 0.85rem;
     }
 
-    /* New games mobile */
+    /* Pattern game */
+    .pattern-sequence {
+        gap: 6px;
+        margin-bottom: 20px;
+    }
+
+    .pattern-arrow {
+        font-size: 1.1rem;
+    }
+
+    /* Drawing game */
+    .draw-container {
+        gap: 10px;
+    }
+
+    .draw-toolbar {
+        padding: 10px;
+        gap: 8px;
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .color-palette {
+        gap: 6px;
+    }
+
+    .color-swatch {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        min-height: 32px;
+    }
+
+    .brush-size-btn.size-sm { width: 18px; height: 18px; }
+    .brush-size-btn.size-md { width: 26px; height: 26px; }
+    .brush-size-btn.size-lg { width: 34px; height: 34px; }
+
+    .tool-divider {
+        height: 24px;
+        margin: 0 3px;
+    }
+
+    .tool-btn {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+    }
+
+    /* Intrus game */
     .intrus-grid {
-        gap: 12px;
-        max-width: 300px;
+        gap: 10px;
+        max-width: 280px;
     }
 
     .intrus-item {
         font-size: clamp(2.5rem, 8vw, 3.5rem);
     }
 
+    /* Vrai/Faux game */
     .vf-buttons {
         flex-direction: column;
         gap: 12px;
@@ -1470,6 +1666,15 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
     .vf-btn {
         padding: 20px 15px;
         font-size: 1.1rem;
+    }
+
+    .vf-btn .vf-icon {
+        font-size: 2.5rem;
+    }
+
+    /* Color sequence game */
+    .cs-container {
+        gap: 18px;
     }
 
     .cs-circle {
@@ -1481,29 +1686,83 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
         font-size: 1.1rem;
     }
 
+    /* Count objects game */
     .count-area {
-        height: 220px;
+        height: 200px;
+        border-radius: var(--radius-sm);
     }
 
     .count-question-text {
         font-size: 1rem;
     }
 
+    /* Switch game section in result modal */
+    .switch-game-section {
+        margin-top: 15px;
+        padding-top: 12px;
+    }
+
+    .switch-game-question {
+        font-size: 0.95rem;
+        margin-bottom: 10px;
+    }
+
     .switch-game-grid {
         grid-template-columns: repeat(5, 1fr);
-        gap: 6px;
+        gap: 5px;
+        max-height: 180px;
     }
 
     .switch-game-btn {
-        padding: 8px 3px;
+        padding: 6px 2px;
     }
 
     .switch-game-btn .sg-icon {
-        font-size: 1.3rem;
+        font-size: 1.2rem;
     }
 
     .switch-game-btn .sg-label {
         font-size: 0.5rem;
+    }
+
+    /* Instruction modal */
+    .instruction-icon {
+        font-size: 3rem;
+    }
+
+    .instruction-title {
+        font-size: 1.4rem;
+    }
+
+    .instruction-text {
+        font-size: 0.95rem;
+        padding: 0 5px;
+    }
+
+    /* Encouragement */
+    .encouragement {
+        padding: 10px 14px;
+        font-size: 0.9rem;
+    }
+
+    /* Quiz timer */
+    .quiz-timer {
+        margin-bottom: 12px;
+    }
+
+    /* Word game tiles */
+    .letter-tiles {
+        gap: 6px;
+        margin-bottom: 15px;
+    }
+
+    .word-hint {
+        font-size: 0.8rem;
+    }
+
+    /* Feedback popups */
+    .feedback {
+        font-size: 2.2rem;
     }
 }
 
@@ -1540,6 +1799,77 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 
 /* -- Very small phones (under 380px, e.g. iPhone SE) -- */
 @media (max-width: 380px) {
+    .screen-content {
+        padding: 10px;
+    }
+
+    /* Welcome */
+    .btn-xl {
+        font-size: 1.1rem;
+        padding: 14px 35px;
+    }
+
+    .papa-photo-ring {
+        width: 75px;
+        height: 75px;
+    }
+
+    .papa-speech-bubble {
+        font-size: 0.85rem;
+        padding: 6px 12px;
+    }
+
+    .emoji-bounce {
+        font-size: 1.6rem;
+    }
+
+    /* Age grid */
+    .age-grid {
+        gap: 10px;
+    }
+
+    .age-btn {
+        padding: 14px 8px;
+    }
+
+    .age-number {
+        font-size: 1.6rem;
+    }
+
+    .age-emoji {
+        font-size: 1.3rem;
+    }
+
+    /* Game header */
+    .game-header {
+        padding: 8px 10px;
+    }
+
+    .game-title-text {
+        font-size: 0.8rem;
+    }
+
+    /* Game content */
+    .game-container {
+        padding: 10px 8px;
+    }
+
+    .question-display {
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+
+    .answer-btn {
+        padding: 12px 12px;
+        font-size: 0.95rem;
+    }
+
+    /* Memory */
+    .memory-grid {
+        gap: 5px;
+    }
+
+    /* Color sequence */
     .cs-circles {
         gap: 10px;
     }
@@ -1549,15 +1879,17 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
         height: 48px;
     }
 
+    /* Intrus */
     .intrus-grid {
-        max-width: 260px;
-        gap: 10px;
+        max-width: 240px;
+        gap: 8px;
     }
 
     .intrus-item {
-        font-size: 2.5rem;
+        font-size: 2.2rem;
     }
 
+    /* Vrai/Faux */
     .vf-btn .vf-icon {
         font-size: 2rem;
     }
@@ -1567,88 +1899,274 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
         padding: 16px 12px;
     }
 
+    /* Count objects */
     .count-area {
-        height: 180px;
+        height: 170px;
     }
 
     .count-object {
         font-size: 1.5rem;
     }
 
+    /* Switch game grid */
     .switch-game-grid {
         grid-template-columns: repeat(3, 1fr);
-        gap: 6px;
+        gap: 5px;
     }
 
     .switch-game-btn .sg-icon {
-        font-size: 1.3rem;
+        font-size: 1.1rem;
     }
 
     .switch-game-btn .sg-label {
-        font-size: 0.5rem;
+        font-size: 0.45rem;
     }
 
+    /* Modal */
     .modal-content {
-        padding: 20px 15px;
+        padding: 18px 12px;
+        width: 96%;
+    }
+
+    .result-title {
+        font-size: 1.2rem;
+    }
+
+    .result-stars {
+        font-size: 2rem;
+        min-height: 2.2rem;
+    }
+
+    .modal-buttons .btn-primary,
+    .modal-buttons .btn-secondary {
+        font-size: 0.85rem;
+        padding: 10px 18px;
+    }
+
+    /* Drawing toolbar */
+    .color-swatch {
+        width: 28px;
+        height: 28px;
+        min-width: 28px;
+        min-height: 28px;
+    }
+
+    /* Pattern game */
+    .pattern-item {
+        width: 42px;
+        height: 42px;
+    }
+
+    /* Letter tiles */
+    .letter-tile {
+        width: 38px;
+        height: 38px;
+        font-size: 1rem;
+    }
+
+    /* Feedback */
+    .feedback {
+        font-size: 1.8rem;
     }
 }
 
 /* -- Landscape orientation on mobile -- */
 @media (max-height: 500px) and (orientation: landscape) {
-    .game-container {
+    .screen-content {
         padding: 10px 20px;
     }
 
-    .question-display {
-        padding: 12px 20px;
+    /* Welcome screen landscape */
+    .welcome-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .papa-mascot-welcome {
+        flex-direction: row;
+        gap: 15px;
+        margin-bottom: 10px;
+    }
+
+    .papa-mascot-welcome .papa-photo-ring {
+        width: 60px;
+        height: 60px;
+    }
+
+    .welcome-emojis {
         margin-bottom: 15px;
     }
 
+    .logo {
+        font-size: 3rem;
+        margin-bottom: 5px;
+    }
+
+    .tagline {
+        margin-bottom: 10px;
+        font-size: 1rem;
+    }
+
+    .btn-xl {
+        padding: 12px 40px;
+        font-size: 1.2rem;
+    }
+
+    /* Game screen landscape */
+    .game-container {
+        padding: 8px 20px;
+    }
+
+    .question-display {
+        padding: 10px 16px;
+        margin-bottom: 10px;
+    }
+
     .question-emoji {
-        font-size: 2.5rem;
+        font-size: 2rem;
+        margin-bottom: 5px;
+    }
+
+    .question-text {
+        font-size: 1.2rem;
+    }
+
+    .answers-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .answer-btn {
+        padding: 10px 14px;
+        font-size: 1rem;
+    }
+
+    /* Memory landscape */
+    .memory-grid {
+        gap: 5px;
+        max-width: 400px;
+    }
+
+    .memory-stats {
         margin-bottom: 8px;
     }
 
+    /* Intrus landscape */
     .intrus-grid {
-        max-width: 300px;
-        gap: 10px;
+        max-width: 250px;
+        gap: 8px;
     }
 
     .intrus-item {
-        font-size: 2.5rem;
+        font-size: 2.2rem;
     }
 
+    /* Count landscape */
     .count-area {
-        height: 180px;
+        height: 160px;
+    }
+
+    /* V/F landscape - side by side */
+    .vf-buttons {
+        flex-direction: row;
+        gap: 15px;
     }
 
     .vf-btn {
-        padding: 15px 15px;
+        padding: 12px 15px;
+        font-size: 1rem;
     }
 
     .vf-btn .vf-icon {
-        font-size: 2rem;
+        font-size: 1.8rem;
+    }
+
+    /* Color sequence landscape */
+    .cs-container {
+        gap: 12px;
     }
 
     .cs-circle {
-        width: 55px;
-        height: 55px;
+        width: 50px;
+        height: 50px;
     }
 
+    /* Pattern landscape */
+    .pattern-sequence {
+        margin-bottom: 12px;
+    }
+
+    /* Drawing landscape */
+    .draw-toolbar {
+        padding: 6px 10px;
+    }
+
+    /* Modal landscape */
     .modal-content {
         max-height: 95vh;
         max-height: 95dvh;
-        padding: 20px;
+        padding: 15px;
     }
 
     .result-stars {
-        font-size: 2rem;
-        margin-bottom: 8px;
-        min-height: 2.3rem;
+        font-size: 1.8rem;
+        margin-bottom: 5px;
+        min-height: 2rem;
     }
 
     .result-title {
-        font-size: 1.4rem;
+        font-size: 1.2rem;
+        margin-bottom: 5px;
+    }
+
+    .result-message {
+        font-size: 0.9rem;
+        margin-bottom: 5px;
+    }
+
+    .result-detail {
+        margin-bottom: 12px;
+    }
+
+    .papa-celebration .papa-photo-ring {
+        width: 50px;
+        height: 50px;
+    }
+
+    .switch-game-section {
+        margin-top: 10px;
+        padding-top: 8px;
+    }
+
+    /* Age selection landscape */
+    .age-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+
+    .age-btn {
+        padding: 12px 8px;
+    }
+
+    .age-number {
+        font-size: 1.5rem;
+    }
+
+    /* Game header landscape */
+    .game-header {
+        padding: 6px 15px;
+    }
+
+    /* Encouragement landscape */
+    .encouragement {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+    }
+
+    /* Feedback landscape */
+    .feedback {
+        font-size: 2rem;
     }
 }
 
@@ -2125,18 +2643,23 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 
 @media (max-width: 600px) {
     .papa-photo-ring {
-        width: 90px;
-        height: 90px;
+        width: 80px;
+        height: 80px;
     }
 
     .papa-celebration .papa-photo-ring {
-        width: 70px;
-        height: 70px;
+        width: 60px;
+        height: 60px;
     }
 
     .papa-speech-bubble {
-        font-size: 0.95rem;
-        padding: 8px 16px;
+        font-size: 0.9rem;
+        padding: 7px 14px;
+    }
+
+    .papa-mascot-welcome {
+        margin-bottom: 10px;
+        gap: 8px;
     }
 }
 
@@ -2934,8 +3457,9 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
     }
 
     .mp-score-header {
-        gap: 8px;
-        padding: 6px 10px;
+        gap: 6px;
+        padding: 5px 10px;
+        padding-top: max(5px, env(safe-area-inset-top));
     }
 
     .mp-player-name {
@@ -2943,10 +3467,63 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
     }
 
     .mp-avatar {
-        width: 28px;
-        height: 28px;
+        width: 26px;
+        height: 26px;
     }
 
+    .mp-player-score {
+        font-size: 1.1rem;
+    }
+
+    .mp-vs {
+        font-size: 0.8rem;
+    }
+
+    /* MP results in modal */
+    .mp-result-scores {
+        gap: 15px;
+    }
+
+    .mp-result-player {
+        padding: 10px 12px;
+    }
+
+    .mp-result-avatar {
+        width: 40px;
+        height: 40px;
+    }
+
+    .mp-result-score {
+        font-size: 1.2rem;
+    }
+
+    /* Call screens mobile */
+    .call-pulse-ring {
+        width: 120px;
+        height: 120px;
+    }
+
+    .call-pulse-avatar {
+        width: 95px;
+        height: 95px;
+    }
+
+    .call-overlay-status {
+        font-size: 1.1rem;
+    }
+
+    /* Disconnect overlay mobile */
+    .disconnect-content {
+        padding: 25px;
+    }
+
+    .disconnect-emoji {
+        font-size: 3rem;
+    }
+
+    .disconnect-content h2 {
+        font-size: 1.4rem;
+    }
 }
 
 @media (max-width: 400px) {
@@ -2959,13 +3536,56 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
         height: 75px;
     }
 
+    .player-card {
+        padding: 12px 15px;
+    }
+
+    .player-name {
+        font-size: 1rem;
+    }
+
+    .call-target-card {
+        padding: 15px 20px;
+        max-width: 220px;
+    }
+
     .call-target-ring {
-        width: 85px;
-        height: 85px;
+        width: 80px;
+        height: 80px;
+    }
+
+    .call-target-name {
+        font-size: 1.1rem;
+    }
+
+    .btn-call {
+        font-size: 1rem;
+        padding: 10px 28px;
+    }
+
+    .btn-solo-big {
+        font-size: 1rem;
+        padding: 12px 30px;
+    }
+
+    .incoming-call-ring {
+        width: 110px;
+        height: 110px;
+    }
+
+    .incoming-call-text {
+        font-size: 1.1rem;
     }
 
     .incoming-call-buttons {
         flex-direction: column;
         align-items: center;
+        gap: 12px;
+    }
+
+    .btn-accept-call,
+    .btn-decline-call {
+        font-size: 1rem;
+        padding: 12px 30px;
     }
 }
