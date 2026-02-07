@@ -1462,34 +1462,65 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
         margin-bottom: 25px;
     }
 
-    /* Game menu */
+    /* Game menu - compact 2-col grid so all games visible */
     .games-grid {
-        grid-template-columns: 1fr;
-        gap: 12px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
     }
 
     .game-card {
-        padding: 18px 15px;
+        padding: 12px 8px;
     }
 
     .card-icon {
-        font-size: 2.8rem;
-        margin-bottom: 8px;
+        font-size: 2rem;
+        margin-bottom: 4px;
+        animation: none;
     }
 
     .card-title {
-        font-size: 1.05rem;
+        font-size: 0.85rem;
+        margin-bottom: 3px;
     }
 
     .card-desc {
-        font-size: 0.85rem;
+        display: none;
+    }
+
+    .card-stars {
+        font-size: 0.9rem;
+        margin-bottom: 4px;
+        min-height: 1.1em;
+    }
+
+    .card-badge {
+        font-size: 0.6rem;
+        padding: 2px 8px;
+        letter-spacing: 0.5px;
     }
 
     .menu-header {
         flex-direction: column;
         text-align: center;
-        margin-bottom: 20px;
-        gap: 8px;
+        margin-bottom: 10px;
+        gap: 5px;
+    }
+
+    .screen-title {
+        font-size: 1.4rem;
+        margin-bottom: 2px;
+    }
+
+    .total-stars {
+        padding: 6px 12px;
+    }
+
+    #total-stars-count {
+        font-size: 1.1rem;
+    }
+
+    .star-icon {
+        font-size: 1.1rem;
     }
 
     /* Game screen header */
@@ -1850,6 +1881,35 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
 
     .age-emoji {
         font-size: 1.3rem;
+    }
+
+    /* Game menu - even more compact */
+    .games-grid {
+        gap: 8px;
+    }
+
+    .game-card {
+        padding: 10px 6px;
+    }
+
+    .card-icon {
+        font-size: 1.6rem;
+        margin-bottom: 2px;
+    }
+
+    .card-title {
+        font-size: 0.75rem;
+    }
+
+    .card-stars {
+        font-size: 0.8rem;
+        min-height: 1em;
+        margin-bottom: 2px;
+    }
+
+    .card-badge {
+        font-size: 0.55rem;
+        padding: 2px 6px;
     }
 
     /* Game header */
