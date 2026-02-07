@@ -1070,11 +1070,14 @@ const HomepageMusic = {
     playing: false,
     muted: false,
     masterGain: null,
+    filter: null,
+    delay: null,
     interval: null,
     btn: null,
+    beat: 0,
+    bpm: 95,
 
     init() {
-        // Create mute button in welcome screen
         const welcome = document.getElementById('welcome-screen');
         if (!welcome || this.btn) return;
         this.btn = document.createElement('button');
@@ -1098,12 +1101,33 @@ const HomepageMusic = {
         }
         try {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Master output chain: filter -> delay -> gain -> destination
             this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.value = 0.10;
+            this.masterGain.gain.value = 0.18;
+
+            // Warm low-pass filter for lo-fi feel
+            this.filter = this.ctx.createBiquadFilter();
+            this.filter.type = 'lowpass';
+            this.filter.frequency.value = 2800;
+            this.filter.Q.value = 0.7;
+
+            // Subtle delay for spaciousness
+            this.delay = this.ctx.createDelay(1.0);
+            this.delay.delayTime.value = 60 / this.bpm * 0.75;
+            const delayGain = this.ctx.createGain();
+            delayGain.gain.value = 0.15;
+
+            this.filter.connect(this.masterGain);
+            this.filter.connect(this.delay);
+            this.delay.connect(delayGain);
+            delayGain.connect(this.masterGain);
             this.masterGain.connect(this.ctx.destination);
+
             this.playing = true;
+            this.beat = 0;
             if (this.btn) this.btn.innerHTML = '\u{1F50A}';
-            this._playLoop();
+            this._scheduleBar();
         } catch (e) { /* ignore audio errors */ }
     },
 
@@ -1125,85 +1149,170 @@ const HomepageMusic = {
         }
     },
 
-    _playNote(freq, startTime, duration, type, vol) {
+    // Soft synth pad - two detuned oscillators for warmth
+    _pad(freq, start, dur, vol) {
+        if (!this.ctx || !this.playing) return;
+        const v = vol || 0.12;
+        [-4, 4].forEach(detune => {
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            osc.detune.value = detune;
+            g.gain.setValueAtTime(0, start);
+            g.gain.linearRampToValueAtTime(v, start + 0.12);
+            g.gain.setValueAtTime(v, start + dur - 0.15);
+            g.gain.linearRampToValueAtTime(0, start + dur);
+            osc.connect(g);
+            g.connect(this.filter);
+            osc.start(start);
+            osc.stop(start + dur + 0.05);
+            this.nodes.push(osc);
+        });
+    },
+
+    // Plucky synth lead - quick attack, filtered
+    _pluck(freq, start, dur, vol) {
         if (!this.ctx || !this.playing) return;
         const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = type || 'sine';
+        const g = this.ctx.createGain();
+        const f = this.ctx.createBiquadFilter();
+        osc.type = 'triangle';
         osc.frequency.value = freq;
-        gain.gain.value = 0;
-        gain.gain.linearRampToValueAtTime(vol || 0.3, startTime + 0.02);
-        gain.gain.linearRampToValueAtTime(0, startTime + duration);
-        osc.connect(gain);
-        gain.connect(this.masterGain);
-        osc.start(startTime);
-        osc.stop(startTime + duration + 0.05);
+        f.type = 'lowpass';
+        f.frequency.setValueAtTime(3500, start);
+        f.frequency.exponentialRampToValueAtTime(800, start + dur);
+        g.gain.setValueAtTime(vol || 0.2, start);
+        g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+        osc.connect(f);
+        f.connect(g);
+        g.connect(this.filter);
+        osc.start(start);
+        osc.stop(start + dur + 0.05);
         this.nodes.push(osc);
     },
 
-    _playLoop() {
-        if (!this.playing || !this.ctx) return;
-        const t = this.ctx.currentTime;
+    // Soft sub bass
+    _bass(freq, start, dur) {
+        if (!this.ctx || !this.playing) return;
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        g.gain.setValueAtTime(0, start);
+        g.gain.linearRampToValueAtTime(0.2, start + 0.04);
+        g.gain.setValueAtTime(0.15, start + dur * 0.5);
+        g.gain.linearRampToValueAtTime(0, start + dur);
+        osc.connect(g);
+        g.connect(this.filter);
+        osc.start(start);
+        osc.stop(start + dur + 0.05);
+        this.nodes.push(osc);
+    },
 
-        // Cheerful, kid-friendly melody in C major
-        const melodies = [
-            // Melody 1 - playful ascending
-            [
-                [523, 0.3], [587, 0.3], [659, 0.3], [698, 0.3],
-                [784, 0.6], [659, 0.3], [784, 0.3],
-                [880, 0.6], [784, 0.3], [659, 0.3],
-                [587, 0.3], [523, 0.3], [587, 0.6], [523, 0.6]
-            ],
-            // Melody 2 - bouncy
-            [
-                [659, 0.3], [659, 0.3], [698, 0.3], [784, 0.3],
-                [784, 0.3], [698, 0.3], [659, 0.3], [587, 0.3],
-                [523, 0.3], [523, 0.3], [587, 0.3], [659, 0.3],
-                [659, 0.5], [587, 0.2], [587, 0.6]
-            ],
-            // Melody 3 - happy march
-            [
-                [523, 0.4], [523, 0.2], [659, 0.4], [523, 0.2],
-                [784, 0.6], [659, 0.6],
-                [523, 0.4], [523, 0.2], [659, 0.4], [523, 0.2],
-                [880, 0.6], [784, 0.6]
-            ],
-            // Melody 4 - gentle waltz
-            [
-                [523, 0.4], [659, 0.4], [784, 0.4],
-                [880, 0.4], [784, 0.4], [659, 0.4],
-                [698, 0.4], [587, 0.4], [523, 0.4],
-                [587, 0.6], [523, 0.6]
-            ]
+    // Soft kick / thump
+    _kick(start) {
+        if (!this.ctx || !this.playing) return;
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(120, start);
+        osc.frequency.exponentialRampToValueAtTime(40, start + 0.12);
+        g.gain.setValueAtTime(0.18, start);
+        g.gain.exponentialRampToValueAtTime(0.001, start + 0.2);
+        osc.connect(g);
+        g.connect(this.masterGain);
+        osc.start(start);
+        osc.stop(start + 0.25);
+        this.nodes.push(osc);
+    },
+
+    // Hi-hat using filtered noise
+    _hat(start, vol) {
+        if (!this.ctx || !this.playing) return;
+        const bufferSize = this.ctx.sampleRate * 0.05;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        const src = this.ctx.createBufferSource();
+        src.buffer = buffer;
+        const f = this.ctx.createBiquadFilter();
+        f.type = 'highpass';
+        f.frequency.value = 8000;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(vol || 0.06, start);
+        g.gain.exponentialRampToValueAtTime(0.001, start + 0.05);
+        src.connect(f);
+        f.connect(g);
+        g.connect(this.masterGain);
+        src.start(start);
+        this.nodes.push(src);
+    },
+
+    _scheduleBar() {
+        if (!this.playing || !this.ctx) return;
+        const t = this.ctx.currentTime + 0.05;
+        const beatDur = 60 / this.bpm;
+        const barDur = beatDur * 4;
+        const bar = this.beat % 4;
+
+        // Chord progression: Cmaj7 - Am7 - Fmaj7 - G7 (modern pop/lofi)
+        const chords = [
+            { root: 131, notes: [262, 330, 392, 494] },  // Cmaj7
+            { root: 110, notes: [220, 262, 330, 392] },  // Am7
+            { root: 175, notes: [349, 440, 523, 659] },  // Fmaj7
+            { root: 196, notes: [392, 494, 587, 698] }   // G7
         ];
 
-        const melody = melodies[Math.floor(Math.random() * melodies.length)];
+        // Melody patterns - dreamy pentatonic phrases
+        const melodyPatterns = [
+            [[784, 0.5], [880, 0.5], [1047, 1], [880, 0.5], [784, 0.5], [659, 1]],
+            [[659, 0.75], [784, 0.25], [880, 0.5], [784, 0.5], [659, 1], [523, 1]],
+            [[1047, 0.5], [880, 0.5], [784, 1], [659, 0.5], [784, 0.5], [880, 1]],
+            [[523, 0.5], [659, 0.5], [784, 0.5], [880, 0.5], [1047, 1], [880, 1]]
+        ];
 
-        let offset = 0;
-        melody.forEach(([freq, dur]) => {
-            this._playNote(freq, t + offset, dur, 'sine', 0.25);
-            offset += dur;
-        });
+        const chord = chords[bar];
 
-        // Simple bass line (root notes)
-        const bassNotes = [262, 196, 220, 262];
-        const bassDur = offset / bassNotes.length;
-        bassNotes.forEach((freq, i) => {
-            this._playNote(freq, t + i * bassDur, bassDur * 0.9, 'triangle', 0.15);
-        });
+        // Pad chord - warm sustained background
+        chord.notes.forEach(n => this._pad(n, t, barDur, 0.06));
 
-        // Light chime accent
-        this._playNote(1047, t + 0.0, 0.15, 'sine', 0.06);
-        this._playNote(1319, t + offset * 0.5, 0.15, 'sine', 0.06);
+        // Sub bass
+        this._bass(chord.root, t, barDur);
 
-        // Clean up old nodes
+        // Drums - chill lo-fi pattern
+        for (let i = 0; i < 4; i++) {
+            const bt = t + i * beatDur;
+            if (i === 0 || i === 2) this._kick(bt);
+            this._hat(bt, 0.04);
+            if (i === 1 || i === 3) this._hat(bt + beatDur * 0.5, 0.025);
+        }
+
+        // Plucky melody - play on some bars with variation
+        if (bar === 0 || bar === 2) {
+            const pattern = melodyPatterns[Math.floor(Math.random() * melodyPatterns.length)];
+            let mOff = 0;
+            pattern.forEach(([freq, dur]) => {
+                const d = dur * beatDur;
+                this._pluck(freq, t + mOff, d * 0.9, 0.13);
+                mOff += d;
+            });
+        }
+
+        // Sparkle arpeggios on other bars
+        if (bar === 1 || bar === 3) {
+            chord.notes.forEach((n, i) => {
+                this._pluck(n * 2, t + i * beatDur * 0.5, beatDur * 0.4, 0.05);
+            });
+        }
+
+        // Cleanup old nodes
         this.nodes = this.nodes.filter(n => {
-            try { return n.context.state !== 'closed'; } catch(e) { return false; }
+            try { return n.context && n.context.state !== 'closed'; } catch(e) { return false; }
         });
 
-        // Schedule next loop with a small gap
-        const loopDuration = (offset + 0.8) * 1000;
-        this.interval = setTimeout(() => this._playLoop(), loopDuration);
+        this.beat++;
+        this.interval = setTimeout(() => this._scheduleBar(), barDur * 1000 - 50);
     }
 };
 
