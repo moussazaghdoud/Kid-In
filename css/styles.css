@@ -550,18 +550,18 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 
 .games-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
 }
 
 .game-card {
     background: var(--color-card-bg);
-    border-radius: var(--radius-md);
-    padding: 25px 20px;
+    border-radius: var(--radius-sm);
+    padding: 12px 8px;
     text-align: center;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-sm);
     position: relative;
     overflow: hidden;
 }
@@ -576,10 +576,9 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 }
 
 .card-icon {
-    font-size: 3.5rem;
-    margin-bottom: 12px;
+    font-size: 2rem;
+    margin-bottom: 4px;
     display: inline-block;
-    animation: cardIconFloat 3s ease-in-out infinite;
 }
 
 .game-card:nth-child(1) .card-icon { animation-delay: 0s; }
@@ -600,32 +599,33 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 
 .card-title {
     font-family: var(--font-title);
-    font-size: 1.2rem;
+    font-size: 0.85rem;
     color: var(--color-text);
-    margin-bottom: 6px;
+    margin-bottom: 3px;
 }
 
 .card-desc {
     font-size: 0.9rem;
     color: var(--color-text-light);
     margin-bottom: 10px;
+    display: none;
 }
 
 .card-stars {
     color: var(--color-yellow);
-    font-size: 1.2rem;
-    margin-bottom: 8px;
-    min-height: 1.4em;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+    min-height: 1.1em;
 }
 
 .card-badge {
     display: inline-block;
-    padding: 4px 14px;
+    padding: 2px 8px;
     border-radius: 20px;
-    font-size: 0.75rem;
+    font-size: 0.6rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
 }
 
 .game-card:nth-child(1) .card-badge { background: #ffe0e0; color: var(--color-secondary); }
@@ -1462,43 +1462,6 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
         margin-bottom: 25px;
     }
 
-    /* Game menu - compact 2-col grid so all games visible */
-    .games-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 10px;
-    }
-
-    .game-card {
-        padding: 12px 8px;
-    }
-
-    .card-icon {
-        font-size: 2rem;
-        margin-bottom: 4px;
-        animation: none;
-    }
-
-    .card-title {
-        font-size: 0.85rem;
-        margin-bottom: 3px;
-    }
-
-    .card-desc {
-        display: none;
-    }
-
-    .card-stars {
-        font-size: 0.9rem;
-        margin-bottom: 4px;
-        min-height: 1.1em;
-    }
-
-    .card-badge {
-        font-size: 0.6rem;
-        padding: 2px 8px;
-        letter-spacing: 0.5px;
-    }
-
     .menu-header {
         flex-direction: column;
         text-align: center;
@@ -1813,6 +1776,39 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
 @media (min-width: 601px) and (max-width: 900px) {
     .games-grid {
         grid-template-columns: repeat(2, 1fr);
+        gap: 18px;
+    }
+
+    .game-card {
+        padding: 20px 16px;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-md);
+    }
+
+    .card-icon {
+        font-size: 3rem;
+        margin-bottom: 10px;
+        animation: cardIconFloat 3s ease-in-out infinite;
+    }
+
+    .card-title {
+        font-size: 1.1rem;
+        margin-bottom: 5px;
+    }
+
+    .card-desc {
+        display: block;
+    }
+
+    .card-stars {
+        font-size: 1.1rem;
+        margin-bottom: 8px;
+        min-height: 1.3em;
+    }
+
+    .card-badge {
+        font-size: 0.7rem;
+        padding: 3px 12px;
     }
 
     .intrus-grid {
@@ -1833,6 +1829,40 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
 @media (min-width: 901px) {
     .games-grid {
         grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+    }
+
+    .game-card {
+        padding: 25px 20px;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-md);
+    }
+
+    .card-icon {
+        font-size: 3.5rem;
+        margin-bottom: 12px;
+        animation: cardIconFloat 3s ease-in-out infinite;
+    }
+
+    .card-title {
+        font-size: 1.2rem;
+        margin-bottom: 6px;
+    }
+
+    .card-desc {
+        display: block;
+    }
+
+    .card-stars {
+        font-size: 1.2rem;
+        margin-bottom: 8px;
+        min-height: 1.4em;
+    }
+
+    .card-badge {
+        font-size: 0.75rem;
+        padding: 4px 14px;
+        letter-spacing: 1px;
     }
 
     #menu-screen .screen-content {
