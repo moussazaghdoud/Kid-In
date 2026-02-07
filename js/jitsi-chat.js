@@ -1,11 +1,11 @@
 /* ============================================
-   Audio Chat - WebRTC Audio Only (P2P)
+   Audio/Video Chat - WebRTC P2P
    Uses existing WebSocket signaling (rtc:offer, rtc:answer, rtc:ice)
    ============================================ */
 
 const AudioChat = {
     pc: null,           // RTCPeerConnection
-    localStream: null,  // Local microphone stream
+    localStream: null,  // Local microphone + camera stream
     remoteAudio: null,  // Remote audio element
     isActive: false,
     isMuted: false,
@@ -35,23 +35,56 @@ const AudioChat = {
         this._showUI('connecting');
 
         try {
-            // Get microphone access (audio only - no video!)
+            // Get microphone + camera access
             this.localStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     echoCancellation: true,
                     noiseSuppression: true,
                     autoGainControl: true
                 },
-                video: false
+                video: {
+                    facingMode: 'user',
+                    width: { ideal: 160 },
+                    height: { ideal: 120 }
+                }
             });
-            console.log('[AudioChat] Microphone access granted');
+            console.log('[AudioChat] Microphone + camera access granted');
+
+            // Show local video preview
+            const localVideo = document.getElementById('local-video');
+            if (localVideo) {
+                localVideo.srcObject = this.localStream;
+            }
         } catch (err) {
-            console.error('[AudioChat] Microphone access denied:', err.name);
-            this._showUI('error', err.name === 'NotAllowedError'
-                ? 'Autorise le micro pour parler !'
-                : 'Micro non disponible');
-            this.isActive = false;
-            return;
+            // Camera might not be available - try audio-only fallback
+            // (but not if user explicitly denied permission)
+            if (err.name === 'NotFoundError' || err.name === 'NotReadableError' || err.name === 'OverconstrainedError') {
+                try {
+                    this.localStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        },
+                        video: false
+                    });
+                    console.log('[AudioChat] Camera unavailable, audio-only mode');
+                } catch (err2) {
+                    console.error('[AudioChat] Microphone access denied:', err2.name);
+                    this._showUI('error', err2.name === 'NotAllowedError'
+                        ? 'Autorise le micro pour parler !'
+                        : 'Micro non disponible');
+                    this.isActive = false;
+                    return;
+                }
+            } else {
+                console.error('[AudioChat] Media access denied:', err.name);
+                this._showUI('error', err.name === 'NotAllowedError'
+                    ? 'Autorise le micro et la cam\u00e9ra !'
+                    : 'Micro non disponible');
+                this.isActive = false;
+                return;
+            }
         }
 
         // Create peer connection
@@ -62,16 +95,27 @@ const AudioChat = {
             this.pc.addTrack(track, this.localStream);
         });
 
-        // Handle remote audio stream
+        // Handle remote audio + video streams
         this.pc.ontrack = (event) => {
-            console.log('[AudioChat] Received remote audio track');
-            if (!this.remoteAudio) {
-                this.remoteAudio = document.createElement('audio');
-                this.remoteAudio.autoplay = true;
-                this.remoteAudio.id = 'remote-audio';
-                document.body.appendChild(this.remoteAudio);
+            const track = event.track;
+            console.log('[AudioChat] Received remote track:', track.kind);
+
+            if (track.kind === 'audio') {
+                if (!this.remoteAudio) {
+                    this.remoteAudio = document.createElement('audio');
+                    this.remoteAudio.autoplay = true;
+                    this.remoteAudio.id = 'remote-audio';
+                    document.body.appendChild(this.remoteAudio);
+                }
+                this.remoteAudio.srcObject = event.streams[0];
+            } else if (track.kind === 'video') {
+                const remoteVideo = document.getElementById('remote-video');
+                if (remoteVideo) {
+                    remoteVideo.srcObject = event.streams[0];
+                    this._showVideoWidget(true);
+                }
             }
-            this.remoteAudio.srcObject = event.streams[0];
+
             this.isConnected = true;
             this._showUI('connected');
         };
@@ -250,6 +294,13 @@ const AudioChat = {
             this.remoteAudio = null;
         }
 
+        // Clean up video elements
+        const localVideo = document.getElementById('local-video');
+        if (localVideo) localVideo.srcObject = null;
+        const remoteVideo = document.getElementById('remote-video');
+        if (remoteVideo) remoteVideo.srcObject = null;
+        this._showVideoWidget(false);
+
         this.isActive = false;
         this.isConnected = false;
         this.isMuted = false;
@@ -316,6 +367,16 @@ const AudioChat = {
             muteBtn.innerHTML = '&#x1F3A4;';
             muteBtn.classList.remove('ac-btn-off');
             muteBtn.title = 'Couper le micro';
+        }
+    },
+
+    _showVideoWidget(show) {
+        const widget = document.getElementById('video-chat-widget');
+        if (!widget) return;
+        if (show) {
+            widget.classList.remove('hidden');
+        } else {
+            widget.classList.add('hidden');
         }
     }
 };
