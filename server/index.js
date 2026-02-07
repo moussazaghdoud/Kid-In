@@ -8,6 +8,15 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 
+// ==================== MAINTENANCE MODE ====================
+const MAINTENANCE_MODE = false; // Set to true to block access
+
+if (MAINTENANCE_MODE) {
+    app.use((req, res) => {
+        res.status(503).send('\u{1F6A7} Site temporairement indisponible - Maintenance en cours');
+    });
+}
+
 // Serve static files from project root
 app.use(express.static(path.join(__dirname, '..')));
 
