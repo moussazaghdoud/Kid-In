@@ -551,46 +551,50 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 .games-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 12px;
 }
 
 .game-card {
-    background: var(--color-card-bg);
-    border-radius: var(--radius-sm);
-    padding: 12px 8px;
+    border-radius: var(--radius-md);
+    padding: 14px 10px 12px;
     text-align: center;
     cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.12);
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 3px solid transparent;
 }
 
 .game-card:hover {
-    transform: translateY(-10px) scale(1.02);
-    box-shadow: var(--shadow-lg);
+    transform: translateY(-4px) scale(1.03);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.18);
 }
 
 .game-card:active {
-    transform: translateY(-3px) scale(0.98);
+    transform: scale(0.96);
 }
+
+/* Colorful card backgrounds */
+.game-card:nth-child(1)  { background: linear-gradient(145deg, #fff0f0, #ffe0e0); border-color: #ffb3b3; }
+.game-card:nth-child(2)  { background: linear-gradient(145deg, #e8f4ff, #d0e8ff); border-color: #99ccff; }
+.game-card:nth-child(3)  { background: linear-gradient(145deg, #e8ffe8, #d0f5d0); border-color: #88dd88; }
+.game-card:nth-child(4)  { background: linear-gradient(145deg, #f3e8ff, #e8d5ff); border-color: #c9a0ff; }
+.game-card:nth-child(5)  { background: linear-gradient(145deg, #fff8e0, #fff0c0); border-color: #ffdd66; }
+.game-card:nth-child(6)  { background: linear-gradient(145deg, #ffe8f0, #ffd0e0); border-color: #ff99bb; }
+.game-card:nth-child(7)  { background: linear-gradient(145deg, #e0fff0, #c8f5e0); border-color: #66ddaa; }
+.game-card:nth-child(8)  { background: linear-gradient(145deg, #e0f8ff, #c8eeff); border-color: #66ccee; }
+.game-card:nth-child(9)  { background: linear-gradient(145deg, #fff5e0, #ffe8c0); border-color: #ffbb55; }
+.game-card:nth-child(10) { background: linear-gradient(145deg, #f8e0ff, #f0c8ff); border-color: #cc88ee; }
 
 .card-icon {
-    font-size: 2rem;
-    margin-bottom: 4px;
+    font-size: 2.4rem;
+    margin-bottom: 6px;
     display: inline-block;
 }
-
-.game-card:nth-child(1) .card-icon { animation-delay: 0s; }
-.game-card:nth-child(2) .card-icon { animation-delay: 0.5s; }
-.game-card:nth-child(3) .card-icon { animation-delay: 1s; }
-.game-card:nth-child(4) .card-icon { animation-delay: 1.5s; }
-.game-card:nth-child(5) .card-icon { animation-delay: 2s; }
-.game-card:nth-child(6) .card-icon { animation-delay: 2.5s; }
-.game-card:nth-child(7) .card-icon { animation-delay: 3s; }
-.game-card:nth-child(8) .card-icon { animation-delay: 3.5s; }
-.game-card:nth-child(9) .card-icon { animation-delay: 4s; }
-.game-card:nth-child(10) .card-icon { animation-delay: 4.5s; }
 
 @keyframes cardIconFloat {
     0%, 100% { transform: translateY(0); }
@@ -599,9 +603,10 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 
 .card-title {
     font-family: var(--font-title);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     color: var(--color-text);
-    margin-bottom: 3px;
+    margin-bottom: 4px;
+    line-height: 1.2;
 }
 
 .card-desc {
@@ -613,31 +618,32 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 
 .card-stars {
     color: var(--color-yellow);
-    font-size: 0.9rem;
-    margin-bottom: 4px;
-    min-height: 1.1em;
+    font-size: 1rem;
+    margin-bottom: 6px;
+    min-height: 1.2em;
+    filter: drop-shadow(0 1px 2px rgba(255, 200, 0, 0.4));
 }
 
 .card-badge {
     display: inline-block;
-    padding: 2px 8px;
+    padding: 4px 12px;
     border-radius: 20px;
-    font-size: 0.6rem;
+    font-size: 0.7rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
-.game-card:nth-child(1) .card-badge { background: #ffe0e0; color: var(--color-secondary); }
-.game-card:nth-child(2) .card-badge { background: #e0f0ff; color: var(--color-blue); }
-.game-card:nth-child(3) .card-badge { background: #e0ffe5; color: var(--color-green); }
-.game-card:nth-child(4) .card-badge { background: #f0e0ff; color: var(--color-purple); }
-.game-card:nth-child(5) .card-badge { background: #fff5e0; color: var(--color-orange); }
-.game-card:nth-child(6) .card-badge { background: #ffe0f0; color: var(--color-pink); }
-.game-card:nth-child(7) .card-badge { background: #e0ffe0; color: #2d8a4e; }
-.game-card:nth-child(8) .card-badge { background: #e0f5ff; color: #2980b9; }
-.game-card:nth-child(9) .card-badge { background: #fff0e0; color: #e67e22; }
-.game-card:nth-child(10) .card-badge { background: #f5e0ff; color: #8e44ad; }
+.game-card:nth-child(1) .card-badge  { background: #ff6b6b; color: white; }
+.game-card:nth-child(2) .card-badge  { background: #339AF0; color: white; }
+.game-card:nth-child(3) .card-badge  { background: #51CF66; color: white; }
+.game-card:nth-child(4) .card-badge  { background: #9775FA; color: white; }
+.game-card:nth-child(5) .card-badge  { background: #FF8A5C; color: white; }
+.game-card:nth-child(6) .card-badge  { background: #FF6B9D; color: white; }
+.game-card:nth-child(7) .card-badge  { background: #2d8a4e; color: white; }
+.game-card:nth-child(8) .card-badge  { background: #2980b9; color: white; }
+.game-card:nth-child(9) .card-badge  { background: #e67e22; color: white; }
+.game-card:nth-child(10) .card-badge { background: #8e44ad; color: white; }
 
 /* ---------- Game Screen ---------- */
 #game-screen {
@@ -1920,11 +1926,12 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
 
     .game-card {
         padding: 10px 6px;
+        border-width: 2px;
     }
 
     .card-icon {
-        font-size: 1.6rem;
-        margin-bottom: 2px;
+        font-size: 1.8rem;
+        margin-bottom: 3px;
     }
 
     .card-title {
@@ -1932,14 +1939,14 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
     }
 
     .card-stars {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         min-height: 1em;
-        margin-bottom: 2px;
+        margin-bottom: 3px;
     }
 
     .card-badge {
-        font-size: 0.55rem;
-        padding: 2px 6px;
+        font-size: 0.6rem;
+        padding: 3px 8px;
     }
 
     /* Game header */
