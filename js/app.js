@@ -460,15 +460,15 @@ const App = {
                 this.playerName = card.dataset.name;
 
                 // Fill play-mode-screen with the OTHER player's info
-                const otherAvatar = this.playerAvatar === 'izaac' ? 'aissa' : 'izaac';
-                const otherName = this.playerAvatar === 'izaac' ? 'Aissa' : 'Izaac';
+                const otherAvatar = this.playerAvatar === 'isaac' ? 'aissa' : 'isaac';
+                const otherName = this.playerAvatar === 'isaac' ? 'Aissa' : 'Isaac';
 
                 document.getElementById('call-target-photo').src = `images/${otherAvatar}.png`;
                 document.getElementById('call-target-photo').alt = otherName;
                 document.getElementById('call-target-name').textContent = otherName;
 
                 const ring = document.getElementById('call-target-ring');
-                ring.className = 'call-target-ring ' + (otherAvatar === 'izaac' ? 'ring-blue' : 'ring-pink');
+                ring.className = 'call-target-ring ' + (otherAvatar === 'isaac' ? 'ring-blue' : 'ring-pink');
 
                 // Also set outgoing call overlay photo
                 document.getElementById('call-overlay-photo').src = `images/${otherAvatar}.png`;
@@ -501,7 +501,7 @@ const App = {
         // Call button
         document.getElementById('btn-call').addEventListener('click', () => {
             Sound.play('click');
-            const targetCharacter = this.playerAvatar === 'izaac' ? 'aissa' : 'izaac';
+            const targetCharacter = this.playerAvatar === 'isaac' ? 'aissa' : 'isaac';
             Multiplayer.initiateCall(targetCharacter);
             // Show outgoing call overlay
             document.getElementById('call-overlay').classList.remove('hidden');

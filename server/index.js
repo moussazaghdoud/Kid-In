@@ -166,7 +166,7 @@ wss.on('connection', (ws) => {
                 console.log(`[Server] Creating room ${code} for player ${ws.playerId}`);
 
                 ws.playerName = msg.playerName || 'Joueur';
-                ws.playerAvatar = msg.avatar || 'izaac';
+                ws.playerAvatar = msg.avatar || 'isaac';
                 ws.roomCode = code;
 
                 rooms.set(code, {
@@ -271,7 +271,7 @@ wss.on('connection', (ws) => {
 
             // ---- Call System ----
             case 'call:register': {
-                const character = msg.character; // 'izaac' or 'aissa'
+                const character = msg.character; // 'isaac' or 'aissa'
                 ws.playerName = msg.playerName || character;
                 ws.playerAvatar = character;
                 onlinePlayers.set(character, { ws, playerName: ws.playerName, avatar: character });
@@ -295,7 +295,7 @@ wss.on('connection', (ws) => {
             }
 
             case 'call:initiate': {
-                const targetCharacter = msg.targetCharacter; // 'izaac' or 'aissa'
+                const targetCharacter = msg.targetCharacter; // 'isaac' or 'aissa'
                 const targetData = onlinePlayers.get(targetCharacter);
 
                 // Clean up any existing call from this caller

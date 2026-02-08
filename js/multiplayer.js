@@ -483,7 +483,7 @@ const MultiplayerGameWrapper = {
             if (clickedBtn && msg.playerId !== Multiplayer.playerId) {
                 const indicator = document.createElement('span');
                 indicator.className = 'mp-answer-indicator';
-                indicator.textContent = msg.playerAvatar === 'izaac' ? '👦' : '👧';
+                indicator.textContent = msg.playerAvatar === 'isaac' ? '👦' : '👧';
                 clickedBtn.appendChild(indicator);
             }
 
