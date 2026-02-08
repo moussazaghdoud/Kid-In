@@ -550,6 +550,34 @@ const App = {
             this.showScreen('player-select-screen');
         });
 
+        // Leave multiplayer from age screen (callee)
+        document.getElementById('leave-mp-age-btn').addEventListener('click', () => {
+            Sound.play('click');
+            if (Multiplayer.roomCode) Multiplayer.leaveRoom();
+            Multiplayer.disconnect();
+            AudioChat.stop();
+            this.isMultiplayer = false;
+            this._updateMpUI();
+            this.showScreen('player-select-screen');
+        });
+
+        // Leave multiplayer from game screen (callee)
+        document.getElementById('leave-mp-game-btn').addEventListener('click', () => {
+            Sound.play('click');
+            Voice.stop();
+            if (this.currentGame && this.currentGame.cleanup) {
+                this.currentGame.cleanup();
+            }
+            this.currentGame = null;
+            this.hideMultiplayerHeader();
+            if (Multiplayer.roomCode) Multiplayer.leaveRoom();
+            Multiplayer.disconnect();
+            AudioChat.stop();
+            this.isMultiplayer = false;
+            this._updateMpUI();
+            this.showScreen('player-select-screen');
+        });
+
         // Disconnect overlay
         document.getElementById('disconnect-back-btn').addEventListener('click', () => {
             Sound.play('click');
@@ -682,19 +710,39 @@ const App = {
     },
 
     _updateMpUI() {
-        const leaveBtn = document.getElementById('leave-mp-btn');
+        const backToWelcome = document.getElementById('back-to-welcome');
+        const leaveMpAge = document.getElementById('leave-mp-age-btn');
         const changeAgeBtn = document.getElementById('change-age-btn');
+        const leaveBtn = document.getElementById('leave-mp-btn');
+        const backToMenu = document.getElementById('back-to-menu');
+        const leaveMpGame = document.getElementById('leave-mp-game-btn');
+
         if (this.isMultiplayer) {
-            leaveBtn.classList.remove('hidden');
-            // Host can change age, callee cannot
             if (Multiplayer.isHost) {
+                // Host: sees all back buttons, no quit buttons
+                backToWelcome.classList.remove('hidden');
+                leaveMpAge.classList.add('hidden');
                 changeAgeBtn.classList.remove('hidden');
+                leaveBtn.classList.remove('hidden');
+                backToMenu.classList.remove('hidden');
+                leaveMpGame.classList.add('hidden');
             } else {
+                // Callee: sees quit buttons, no back buttons
+                backToWelcome.classList.add('hidden');
+                leaveMpAge.classList.remove('hidden');
                 changeAgeBtn.classList.add('hidden');
+                leaveBtn.classList.remove('hidden');
+                backToMenu.classList.add('hidden');
+                leaveMpGame.classList.remove('hidden');
             }
         } else {
-            leaveBtn.classList.add('hidden');
+            // Solo: back buttons visible, quit buttons hidden
+            backToWelcome.classList.remove('hidden');
+            leaveMpAge.classList.add('hidden');
             changeAgeBtn.classList.remove('hidden');
+            leaveBtn.classList.add('hidden');
+            backToMenu.classList.remove('hidden');
+            leaveMpGame.classList.add('hidden');
         }
     },
 
@@ -929,20 +977,47 @@ const Instructions = {
 // ==================== SYNTHÈSE VOCALE ====================
 const Voice = {
     speaking: false,
+    _cachedVoice: null,
+
+    _pickBestFrenchVoice() {
+        if (this._cachedVoice) return this._cachedVoice;
+        const voices = speechSynthesis.getVoices();
+        const french = voices.filter(v => v.lang.startsWith('fr'));
+        if (french.length === 0) return null;
+
+        // Score voices: prefer natural/premium voices over robotic defaults
+        const score = (v) => {
+            const name = v.name.toLowerCase();
+            // Google Natural/Wavenet voices (Chrome) — best quality
+            if (name.includes('google') && name.includes('natural')) return 100;
+            if (name.includes('google')) return 90;
+            // Microsoft Online (Neural) voices (Edge/Windows) — very natural
+            if (name.includes('online') || name.includes('neural')) return 85;
+            // Apple premium voices (Safari/macOS/iOS)
+            if (name.includes('audrey') || name.includes('thomas') || name.includes('amelie')) return 80;
+            // Enhanced / premium markers
+            if (name.includes('premium') || name.includes('enhanced') || name.includes('natural')) return 75;
+            // Non-local voices are often higher quality
+            if (!v.localService) return 60;
+            return 10;
+        };
+
+        french.sort((a, b) => score(b) - score(a));
+        this._cachedVoice = french[0];
+        return this._cachedVoice;
+    },
 
     speak(text) {
         if (!('speechSynthesis' in window)) return;
         this.stop();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'fr-FR';
-        utterance.rate = 0.9;
-        utterance.pitch = 1.05;
+        utterance.rate = 0.95;
+        utterance.pitch = 1.1;
         utterance.volume = 1;
 
-        // Essayer de trouver une voix française
-        const voices = speechSynthesis.getVoices();
-        const frenchVoice = voices.find(v => v.lang.startsWith('fr'));
-        if (frenchVoice) utterance.voice = frenchVoice;
+        const voice = this._pickBestFrenchVoice();
+        if (voice) utterance.voice = voice;
 
         utterance.onstart = () => { this.speaking = true; };
         utterance.onend = () => { this.speaking = false; };
@@ -961,7 +1036,7 @@ const Voice = {
 
 // Charger les voix (nécessaire pour certains navigateurs)
 if ('speechSynthesis' in window) {
-    speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+    speechSynthesis.onvoiceschanged = () => { Voice._cachedVoice = null; speechSynthesis.getVoices(); };
 }
 
 
