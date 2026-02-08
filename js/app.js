@@ -686,7 +686,12 @@ const App = {
         const changeAgeBtn = document.getElementById('change-age-btn');
         if (this.isMultiplayer) {
             leaveBtn.classList.remove('hidden');
-            changeAgeBtn.classList.add('hidden');
+            // Host can change age, callee cannot
+            if (Multiplayer.isHost) {
+                changeAgeBtn.classList.remove('hidden');
+            } else {
+                changeAgeBtn.classList.add('hidden');
+            }
         } else {
             leaveBtn.classList.add('hidden');
             changeAgeBtn.classList.remove('hidden');
@@ -3330,16 +3335,29 @@ class ColorSequence {
 
 // ==================== JEU : COMPTE LES OBJETS ====================
 class CountObjects {
-    constructor(age, container) {
+    constructor(age, container, rng) {
         this.name = 'countobj';
         this.age = age;
         this.container = container;
+        this._rng = rng;
         this.score = 0;
         this.current = 0;
         this.total = 10;
         this.questions = [];
         this.generateQuestions();
         this.showQuestion();
+    }
+
+    _randInt(min, max) {
+        return this._rng ? this._rng.randInt(min, max) : randInt(min, max);
+    }
+
+    _shuffle(arr) {
+        return this._rng ? this._rng.shuffle(arr) : shuffle(arr);
+    }
+
+    _random() {
+        return this._rng ? this._rng.next() : Math.random();
     }
 
     getEmojis() {
@@ -3351,24 +3369,33 @@ class CountObjects {
         ];
     }
 
+    _generateWrongAnswers(correct, count, min, max) {
+        const wrongs = new Set();
+        while (wrongs.size < count) {
+            let w = this._randInt(min, max);
+            if (w !== correct && !wrongs.has(w)) wrongs.add(w);
+        }
+        return [...wrongs];
+    }
+
     generateQuestions() {
         const emojis = this.getEmojis();
         this.questions = [];
 
         for (let i = 0; i < this.total; i++) {
-            const available = shuffle(emojis);
+            const available = this._shuffle(emojis);
             const target = available[0];
             let targetCount, distractorTypes;
 
             if (this.age <= 6) {
-                targetCount = randInt(2, 5);
+                targetCount = this._randInt(2, 5);
                 distractorTypes = 0;
             } else if (this.age <= 8) {
-                targetCount = randInt(3, 7);
-                distractorTypes = randInt(1, 2);
+                targetCount = this._randInt(3, 7);
+                distractorTypes = this._randInt(1, 2);
             } else {
-                targetCount = randInt(4, 9);
-                distractorTypes = randInt(2, 3);
+                targetCount = this._randInt(4, 9);
+                distractorTypes = this._randInt(2, 3);
             }
 
             const objects = [];
@@ -3378,7 +3405,7 @@ class CountObjects {
 
             for (let d = 0; d < distractorTypes; d++) {
                 const distractor = available[d + 1];
-                const distractorCount = randInt(1, Math.max(1, targetCount - 1));
+                const distractorCount = this._randInt(1, Math.max(1, targetCount - 1));
                 for (let j = 0; j < distractorCount; j++) {
                     objects.push({ emoji: distractor, isTarget: false });
                 }
@@ -3387,13 +3414,13 @@ class CountObjects {
             // Generate positions with collision avoidance
             const positions = this.generatePositions(objects.length);
 
-            const wrongAnswers = generateWrongAnswers(targetCount, 3, Math.max(1, targetCount - 3), targetCount + 4);
-            const options = shuffle([targetCount, ...wrongAnswers]);
+            const wrongAnswers = this._generateWrongAnswers(targetCount, 3, Math.max(1, targetCount - 3), targetCount + 4);
+            const options = this._shuffle([targetCount, ...wrongAnswers]);
 
             this.questions.push({
                 target,
                 targetCount,
-                objects: shuffle(objects),
+                objects: this._shuffle(objects),
                 positions,
                 options
             });
@@ -3411,8 +3438,8 @@ class CountObjects {
             let valid = false;
 
             while (!valid && attempts < 100) {
-                x = padding + Math.random() * (100 - 2 * padding - objSize / 5);
-                y = padding + Math.random() * (100 - 2 * padding - objSize / 5);
+                x = padding + this._random() * (100 - 2 * padding - objSize / 5);
+                y = padding + this._random() * (100 - 2 * padding - objSize / 5);
                 valid = true;
 
                 for (const pos of positions) {
