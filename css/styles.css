@@ -3399,6 +3399,39 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
     display: none;
 }
 
+.mp-header-nav {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 0.75rem;
+    color: white;
+    background: rgba(255,255,255,0.2);
+    border: none;
+    border-radius: 8px;
+    padding: 5px 10px;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.mp-header-nav:hover {
+    background: rgba(255,255,255,0.35);
+}
+
+.mp-header-nav-leave {
+    background: rgba(255, 80, 80, 0.35);
+}
+
+.mp-header-nav-leave:hover {
+    background: rgba(255, 80, 80, 0.55);
+}
+
+.mp-header-nav.hidden {
+    display: none;
+}
+
 .mp-player {
     display: flex;
     align-items: center;
@@ -3626,6 +3659,12 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
         gap: 6px;
         padding: 5px 10px;
         padding-top: max(5px, env(safe-area-inset-top));
+    }
+
+    .mp-header-nav {
+        font-size: 0.65rem;
+        padding: 4px 7px;
+        left: 5px;
     }
 
     .mp-player-name {
