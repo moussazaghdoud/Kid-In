@@ -590,23 +590,6 @@ const App = {
             this.showScreen('menu-screen');
         });
 
-        // Leave multiplayer from mp-score-header (callee)
-        document.getElementById('mp-leave-game-btn').addEventListener('click', () => {
-            Sound.play('click');
-            Voice.stop();
-            if (this.currentGame && this.currentGame.cleanup) {
-                this.currentGame.cleanup();
-            }
-            this.currentGame = null;
-            this.hideMultiplayerHeader();
-            if (Multiplayer.roomCode) Multiplayer.leaveRoom();
-            Multiplayer.disconnect();
-            AudioChat.stop();
-            this.isMultiplayer = false;
-            this._updateMpUI();
-            this.showScreen('player-select-screen');
-        });
-
         // Disconnect overlay
         document.getElementById('disconnect-back-btn').addEventListener('click', () => {
             Sound.play('click');
@@ -745,9 +728,8 @@ const App = {
         const leaveBtn = document.getElementById('leave-mp-btn');
         const backToMenu = document.getElementById('back-to-menu');
         const leaveMpGame = document.getElementById('leave-mp-game-btn');
-        // Buttons inside mp-score-header (above video vignette)
+        // Back button inside mp-score-header (above video vignette)
         const mpBackToMenu = document.getElementById('mp-back-to-menu');
-        const mpLeaveGame = document.getElementById('mp-leave-game-btn');
 
         if (this.isMultiplayer) {
             if (Multiplayer.isHost) {
@@ -759,17 +741,15 @@ const App = {
                 backToMenu.classList.add('hidden');
                 leaveMpGame.classList.add('hidden');
                 mpBackToMenu.classList.remove('hidden');
-                mpLeaveGame.classList.add('hidden');
             } else {
-                // Callee: quit buttons on age/menu, score-header quit on game
+                // Callee: quit buttons on age/menu, score-header back on game
                 backToWelcome.classList.add('hidden');
                 leaveMpAge.classList.remove('hidden');
                 changeAgeBtn.classList.add('hidden');
                 leaveBtn.classList.remove('hidden');
                 backToMenu.classList.add('hidden');
                 leaveMpGame.classList.add('hidden');
-                mpBackToMenu.classList.add('hidden');
-                mpLeaveGame.classList.remove('hidden');
+                mpBackToMenu.classList.remove('hidden');
             }
         } else {
             // Solo: back buttons visible, quit buttons hidden
@@ -780,7 +760,6 @@ const App = {
             backToMenu.classList.remove('hidden');
             leaveMpGame.classList.add('hidden');
             mpBackToMenu.classList.add('hidden');
-            mpLeaveGame.classList.add('hidden');
         }
     },
 

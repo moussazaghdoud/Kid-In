@@ -3420,14 +3420,6 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
     background: rgba(255,255,255,0.35);
 }
 
-.mp-header-nav-leave {
-    background: rgba(255, 80, 80, 0.35);
-}
-
-.mp-header-nav-leave:hover {
-    background: rgba(255, 80, 80, 0.55);
-}
-
 .mp-header-nav.hidden {
     display: none;
 }
