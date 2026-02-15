@@ -60,7 +60,7 @@ const App = {
         const el = document.getElementById('total-stars-count');
         if (el) el.textContent = this.totalStars;
 
-        ['math', 'words', 'memory', 'pattern', 'draw', 'quiz', 'intrus', 'vf', 'colorseq', 'countobj'].forEach(game => {
+        ['math', 'words', 'memory', 'pattern', 'draw', 'quiz', 'intrus', 'vf', 'colorseq', 'countobj', 'timer'].forEach(game => {
             const starEl = document.getElementById(`stars-${game}`);
             if (starEl) {
                 const count = this.gameStars[game] || 0;
@@ -266,14 +266,15 @@ const App = {
             intrus: 'Trouve l\'Intrus',
             vf: 'Vrai ou Faux',
             colorseq: 'Suite de Couleurs',
-            countobj: 'Compte les Objets'
+            countobj: 'Compte les Objets',
+            timer: 'Chrono D\u00E9fi'
         };
 
         document.getElementById('game-title').textContent = titles[gameName] || 'Jeu';
 
         const gameProgressEl = document.querySelector('.game-progress');
 
-        if (gameName === 'draw') {
+        if (gameName === 'draw' || gameName === 'timer') {
             gameProgressEl.style.display = 'none';
             document.querySelector('.game-progress-bar').style.display = 'none';
         } else if (gameName === 'colorseq') {
@@ -318,6 +319,9 @@ const App = {
             case 'countobj':
                 this.currentGame = new CountObjects(this.age, container, rng);
                 break;
+            case 'timer':
+                this.currentGame = new TimerChallenge(this.age, container, rng);
+                break;
         }
 
         // Apply multiplayer wrapper if in multiplayer mode
@@ -342,7 +346,8 @@ const App = {
         { id: 'intrus',   icon: '\u{1F50E}', label: 'Intrus' },
         { id: 'vf',       icon: '\u2705',    label: 'Vrai/Faux' },
         { id: 'colorseq', icon: '\u{1F7E2}', label: 'Couleurs' },
-        { id: 'countobj', icon: '\u{1F522}', label: 'Compter' }
+        { id: 'countobj', icon: '\u{1F522}', label: 'Compter' },
+        { id: 'timer',    icon: '\u23F1',    label: 'Chrono' }
     ],
 
     showModal(title, message, detail, starsEarned) {
@@ -984,6 +989,12 @@ const Instructions = {
                 title: 'Compte les Objets',
                 text: 'Des objets sont \u00E9parpill\u00E9s sur l\'\u00E9cran. Compte bien les objets demand\u00E9s et choisis la bonne r\u00E9ponse ! Il y a 10 questions. Bonne chance !',
                 voiceText: 'Bienvenue dans Compte les Objets ! Tu vas voir plein d\'objets \u00E9parpill\u00E9s. On te demandera combien il y en a d\'un certain type. Compte bien et clique sur la bonne r\u00E9ponse !'
+            },
+            timer: {
+                icon: '\u23F1',
+                title: 'Chrono D\u00E9fi',
+                text: 'Le chrono d\u00E9marre \u00E0 00:00 et monte. Appuie sur STOP le plus pr\u00E8s possible de 10:00 ! Il y a 5 manches. Celui qui est le plus pr\u00E8s de 10 secondes gagne le point !',
+                voiceText: 'Bienvenue dans le Chrono D\u00E9fi ! Un chrono va d\u00E9marrer \u00E0 z\u00E9ro et monter. Tu dois appuyer sur le bouton Stop le plus pr\u00E8s possible de 10 secondes. Bonne chance !'
             }
         };
         return data[gameName] || data.math;
@@ -3617,6 +3628,152 @@ class CountObjects {
     }
 
     cleanup() {}
+}
+
+
+// ==================== CHRONO DEFI (TIMER CHALLENGE) ====================
+class TimerChallenge {
+    constructor(age, container) {
+        this.name = 'timer';
+        this.age = age;
+        this.container = container;
+        this.score = 0;
+        this.current = 0;
+        this.total = 5;
+        this.timerInterval = null;
+        this.startTime = 0;
+        this.elapsed = 0;
+        this.stopped = false;
+        this.roundResults = [];
+        this.startRound();
+    }
+
+    startRound() {
+        if (this.current >= this.total) {
+            this.endGame();
+            return;
+        }
+
+        this.stopped = false;
+        this.elapsed = 0;
+
+        this.container.innerHTML = `
+            <div class="timer-game">
+                <div class="timer-round-info">Manche ${this.current + 1} / ${this.total}</div>
+                <div class="timer-display-wrapper">
+                    <div class="timer-display" id="timer-display">00:00</div>
+                    <div class="timer-target">Objectif : <strong>10:00</strong></div>
+                </div>
+                <button class="timer-stop-btn" id="timer-stop-btn">STOP</button>
+                <div class="timer-result-area" id="timer-result-area"></div>
+            </div>
+        `;
+
+        const stopBtn = document.getElementById('timer-stop-btn');
+        stopBtn.addEventListener('click', () => this.stopTimer());
+
+        // Countdown 3-2-1 then start
+        this.showCountdown(() => {
+            this.startTime = performance.now();
+            this.timerInterval = setInterval(() => this.updateDisplay(), 10);
+        });
+    }
+
+    showCountdown(onComplete) {
+        const display = document.getElementById('timer-display');
+        const stopBtn = document.getElementById('timer-stop-btn');
+        stopBtn.style.display = 'none';
+        let count = 3;
+        display.textContent = count;
+        display.classList.add('timer-countdown');
+
+        const countInterval = setInterval(() => {
+            count--;
+            if (count > 0) {
+                display.textContent = count;
+            } else {
+                clearInterval(countInterval);
+                display.classList.remove('timer-countdown');
+                display.textContent = '00:00';
+                stopBtn.style.display = '';
+                onComplete();
+            }
+        }, 700);
+    }
+
+    updateDisplay() {
+        if (this.stopped) return;
+        this.elapsed = performance.now() - this.startTime;
+        const display = document.getElementById('timer-display');
+        if (display) {
+            display.textContent = this.formatTime(this.elapsed);
+        }
+    }
+
+    formatTime(ms) {
+        const totalCentiseconds = Math.floor(ms / 10);
+        const seconds = Math.floor(totalCentiseconds / 100);
+        const centiseconds = totalCentiseconds % 100;
+        return String(seconds).padStart(2, '0') + ':' + String(centiseconds).padStart(2, '0');
+    }
+
+    stopTimer() {
+        if (this.stopped) return;
+        this.stopped = true;
+        clearInterval(this.timerInterval);
+
+        const finalTime = this.elapsed;
+        const target = 10000; // 10 seconds in ms
+        const diff = Math.abs(finalTime - target);
+        const won = diff < 500; // within 0.5s is a "win" in solo
+
+        this.roundResults.push({ time: finalTime, diff });
+
+        if (diff < 200) {
+            this.score++;
+        }
+
+        const resultArea = document.getElementById('timer-result-area');
+        const display = document.getElementById('timer-display');
+        display.textContent = this.formatTime(finalTime);
+
+        if (diff < 100) {
+            display.classList.add('timer-perfect');
+            resultArea.innerHTML = `<div class="timer-result timer-great">Parfait ! ${this.formatTime(finalTime)}</div>`;
+        } else if (diff < 300) {
+            display.classList.add('timer-good');
+            resultArea.innerHTML = `<div class="timer-result timer-good-result">Tr\u00E8s proche ! ${this.formatTime(finalTime)}</div>`;
+        } else if (diff < 500) {
+            resultArea.innerHTML = `<div class="timer-result timer-ok-result">Pas mal ! ${this.formatTime(finalTime)}</div>`;
+        } else {
+            resultArea.innerHTML = `<div class="timer-result timer-miss-result">Trop loin ! ${this.formatTime(finalTime)}</div>`;
+        }
+
+        Sound.play(diff < 500 ? 'correct' : 'wrong');
+
+        this.current++;
+
+        setTimeout(() => this.startRound(), 2000);
+    }
+
+    endGame() {
+        clearInterval(this.timerInterval);
+        const avgDiff = this.roundResults.reduce((sum, r) => sum + r.diff, 0) / this.roundResults.length;
+        const stars = avgDiff < 200 ? 3 : avgDiff < 500 ? 2 : avgDiff < 1000 ? 1 : 0;
+        const bestRound = this.roundResults.reduce((best, r) => r.diff < best.diff ? r : best);
+
+        App.addStars('timer', stars);
+        App.showModal(
+            stars >= 2 ? 'Chrono ma\u00EEtris\u00E9 !' : stars >= 1 ? 'Bon r\u00E9flexe !' : 'Essaie encore !',
+            `Meilleur temps : ${this.formatTime(bestRound.time)}`,
+            `\u00C9cart moyen : ${(avgDiff / 1000).toFixed(2)}s \u2022 ${stars} \u00E9toile${stars !== 1 ? 's' : ''}`,
+            stars
+        );
+    }
+
+    cleanup() {
+        clearInterval(this.timerInterval);
+    }
 }
 
 

@@ -411,6 +411,8 @@ const MultiplayerGameWrapper = {
             this._wrapIntrusGame(game);
         } else if (gameName === 'vf') {
             this._wrapVFGame(game);
+        } else if (gameName === 'timer') {
+            this._wrapTimerGame(game);
         }
 
         return game;
@@ -854,6 +856,111 @@ const MultiplayerGameWrapper = {
                     game.endGame();
                 }, 1000);
             }
+        };
+    },
+
+    _wrapTimerGame(game) {
+        const origStop = game.stopTimer.bind(game);
+
+        game.stopTimer = function() {
+            if (game.stopped) return;
+            game.stopped = true;
+            clearInterval(game.timerInterval);
+
+            const finalTime = game.elapsed;
+            const diff = Math.abs(finalTime - 10000);
+
+            Multiplayer.sendAction('timer-stop', {
+                round: game.current,
+                time: finalTime,
+                diff
+            });
+
+            // Show waiting message
+            const display = document.getElementById('timer-display');
+            if (display) display.textContent = game.formatTime(finalTime);
+            const stopBtn = document.getElementById('timer-stop-btn');
+            if (stopBtn) stopBtn.style.display = 'none';
+            const resultArea = document.getElementById('timer-result-area');
+            if (resultArea) {
+                resultArea.innerHTML = `<div class="timer-result">Ton temps : ${game.formatTime(finalTime)} \u2014 En attente de l'autre joueur...</div>`;
+            }
+        };
+
+        // Override startRound to not auto-advance
+        const origStartRound = game.startRound.bind(game);
+        game.startRound = function() {
+            if (game.current >= game.total) {
+                game.endGame();
+                return;
+            }
+            game.stopped = false;
+            game.elapsed = 0;
+
+            game.container.innerHTML = `
+                <div class="timer-game">
+                    <div class="timer-round-info">Manche ${game.current + 1} / ${game.total}</div>
+                    <div class="timer-display-wrapper">
+                        <div class="timer-display" id="timer-display">00:00</div>
+                        <div class="timer-target">Objectif : <strong>10:00</strong></div>
+                    </div>
+                    <button class="timer-stop-btn" id="timer-stop-btn">STOP</button>
+                    <div class="timer-result-area" id="timer-result-area"></div>
+                </div>
+            `;
+
+            const stopBtn = document.getElementById('timer-stop-btn');
+            stopBtn.addEventListener('click', () => game.stopTimer());
+
+            game.showCountdown(() => {
+                game.startTime = performance.now();
+                game.timerInterval = setInterval(() => game.updateDisplay(), 10);
+            });
+        };
+
+        Multiplayer.onGameUpdate = function(msg) {
+            if (msg.actionType !== 'timer-result') return;
+
+            const resultArea = document.getElementById('timer-result-area');
+            const display = document.getElementById('timer-display');
+
+            // Find own and opponent results
+            const myId = Multiplayer.playerId;
+            const myResult = msg.results.find(r => r.playerId === myId);
+            const opResult = msg.results.find(r => r.playerId !== myId);
+
+            if (!myResult || !opResult) return;
+
+            const myWon = myResult.diff < opResult.diff;
+            const tie = myResult.diff === opResult.diff;
+
+            if (myWon) {
+                Sound.play('correct');
+                App.showFeedback(true);
+            } else if (!tie) {
+                Sound.play('wrong');
+                App.showFeedback(false);
+            }
+
+            const opName = opResult.playerName || 'Adversaire';
+            if (resultArea) {
+                resultArea.innerHTML = `
+                    <div class="timer-result ${myWon ? 'timer-great' : tie ? 'timer-ok-result' : 'timer-miss-result'}">
+                        ${myWon ? 'Tu gagnes ce round !' : tie ? 'Egalit\u00E9 !' : opName + ' gagne ce round !'}
+                    </div>
+                    <div class="timer-round-detail">
+                        Toi : ${game.formatTime(myResult.time)} | ${opName} : ${game.formatTime(opResult.time)}
+                    </div>
+                `;
+            }
+
+            if (msg.scores) {
+                App._mpScores = msg.scores;
+                App.updateMultiplayerScores(msg.scores);
+            }
+
+            game.current++;
+            setTimeout(() => game.startRound(), 2500);
         };
     },
 

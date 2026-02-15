@@ -3786,3 +3786,145 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
         padding: 12px 30px;
     }
 }
+
+/* ---------- Chrono Defi (Timer Challenge) ---------- */
+.timer-game {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 30px 20px;
+    min-height: 350px;
+}
+
+.timer-round-info {
+    font-family: var(--font-title);
+    font-size: 1.2rem;
+    color: var(--color-text-light);
+}
+
+.timer-display-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.timer-display {
+    font-family: 'Fredoka One', monospace;
+    font-size: 5rem;
+    color: var(--color-primary);
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: var(--radius-md);
+    padding: 20px 40px;
+    box-shadow: var(--shadow-md);
+    min-width: 280px;
+    text-align: center;
+    letter-spacing: 4px;
+    transition: color 0.3s, transform 0.2s;
+}
+
+.timer-display.timer-countdown {
+    font-size: 6rem;
+    color: var(--color-secondary);
+    animation: timer-pulse 0.7s ease-in-out;
+}
+
+.timer-display.timer-perfect {
+    color: var(--color-green);
+    transform: scale(1.05);
+}
+
+.timer-display.timer-good {
+    color: var(--color-accent);
+}
+
+@keyframes timer-pulse {
+    0% { transform: scale(0.8); opacity: 0.5; }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.timer-target {
+    font-size: 1rem;
+    color: var(--color-text-light);
+    font-family: var(--font-body);
+}
+
+.timer-target strong {
+    color: var(--color-primary);
+    font-size: 1.1rem;
+}
+
+.timer-stop-btn {
+    font-family: var(--font-title);
+    font-size: 2rem;
+    padding: 18px 60px;
+    border: none;
+    border-radius: 50px;
+    background: linear-gradient(135deg, var(--color-secondary), var(--color-orange));
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+    transition: transform 0.1s, box-shadow 0.1s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.timer-stop-btn:active {
+    transform: scale(0.95);
+    box-shadow: 0 3px 10px rgba(255, 107, 107, 0.3);
+}
+
+.timer-result-area {
+    text-align: center;
+    min-height: 60px;
+}
+
+.timer-result {
+    font-family: var(--font-title);
+    font-size: 1.3rem;
+    padding: 10px 20px;
+    border-radius: var(--radius-sm);
+    animation: timer-result-pop 0.4s ease-out;
+}
+
+.timer-great {
+    color: var(--color-green);
+}
+
+.timer-good-result {
+    color: var(--color-accent);
+}
+
+.timer-ok-result {
+    color: var(--color-orange);
+}
+
+.timer-miss-result {
+    color: var(--color-secondary);
+}
+
+.timer-round-detail {
+    font-size: 0.95rem;
+    color: var(--color-text-light);
+    margin-top: 6px;
+}
+
+@keyframes timer-result-pop {
+    0% { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+@media (max-width: 480px) {
+    .timer-display {
+        font-size: 3.5rem;
+        padding: 15px 25px;
+        min-width: 200px;
+    }
+
+    .timer-stop-btn {
+        font-size: 1.5rem;
+        padding: 14px 45px;
+    }
+}

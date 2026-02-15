@@ -556,6 +556,40 @@ wss.on('connection', (ws) => {
                     break;
                 }
 
+                // For timer game stops
+                if (msg.actionType === 'timer-stop') {
+                    if (!room.gameState._timerRounds) room.gameState._timerRounds = {};
+                    const roundKey = `round-${msg.round}`;
+                    if (!room.gameState._timerRounds[roundKey]) room.gameState._timerRounds[roundKey] = [];
+
+                    room.gameState._timerRounds[roundKey].push({
+                        playerId: ws.playerId,
+                        playerName: ws.playerName,
+                        time: msg.time,
+                        diff: msg.diff
+                    });
+
+                    // When both players have stopped, compare and broadcast
+                    if (room.gameState._timerRounds[roundKey].length === 2) {
+                        const results = room.gameState._timerRounds[roundKey];
+                        const winner = results[0].diff <= results[1].diff ? results[0] : results[1];
+                        const tie = results[0].diff === results[1].diff;
+                        if (!tie) {
+                            room.gameState.scores[winner.playerId] = (room.gameState.scores[winner.playerId] || 0) + 1;
+                        }
+
+                        const update = {
+                            type: 'game:update',
+                            actionType: 'timer-result',
+                            results,
+                            winnerId: tie ? null : winner.playerId,
+                            scores: room.gameState.scores
+                        };
+                        room.players.forEach(p => sendTo(p.ws, update));
+                    }
+                    break;
+                }
+
                 // For draw strokes
                 if (msg.actionType === 'draw-stroke') {
                     broadcastToRoom(ws.roomCode, {
