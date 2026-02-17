@@ -589,6 +589,7 @@ button, .game-card, .age-btn, .answer-btn, .memory-card,
 .game-card:nth-child(8)  { background: linear-gradient(145deg, #e0f8ff, #c8eeff); border-color: #66ccee; }
 .game-card:nth-child(9)  { background: linear-gradient(145deg, #fff5e0, #ffe8c0); border-color: #ffbb55; }
 .game-card:nth-child(10) { background: linear-gradient(145deg, #f8e0ff, #f0c8ff); border-color: #cc88ee; }
+.game-card:nth-child(11) { background: linear-gradient(145deg, #ffe0e8, #ffc8d5); border-color: #ff7799; }
 
 .card-icon {
     font-size: 2.4rem;
