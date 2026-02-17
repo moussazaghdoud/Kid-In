@@ -3812,14 +3812,15 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
 }
 
 .timer-display {
-    font-family: 'Fredoka One', monospace;
+    font-family: 'Courier New', 'Lucida Console', monospace;
     font-size: 5rem;
+    font-weight: 700;
     color: var(--color-primary);
     background: rgba(255, 255, 255, 0.9);
     border-radius: var(--radius-md);
     padding: 20px 40px;
     box-shadow: var(--shadow-md);
-    min-width: 280px;
+    width: 320px;
     text-align: center;
     letter-spacing: 4px;
     transition: color 0.3s, transform 0.2s;
@@ -3918,7 +3919,7 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
     .timer-display {
         font-size: 3.5rem;
         padding: 15px 25px;
-        min-width: 200px;
+        width: 240px;
     }
 
     .timer-stop-btn {
