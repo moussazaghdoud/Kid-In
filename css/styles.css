@@ -3801,7 +3801,7 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
 .timer-round-info {
     font-family: var(--font-title);
     font-size: 1.2rem;
-    color: var(--color-text-light);
+    color: #fff;
 }
 
 .timer-display-wrapper {
@@ -3847,12 +3847,12 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
 
 .timer-target {
     font-size: 1rem;
-    color: var(--color-text-light);
+    color: #fff;
     font-family: var(--font-body);
 }
 
 .timer-target strong {
-    color: var(--color-primary);
+    color: var(--color-yellow);
     font-size: 1.1rem;
 }
 
