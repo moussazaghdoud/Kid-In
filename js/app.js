@@ -22,6 +22,11 @@ const App = {
         this.bindEvents();
         this.bindMultiplayerEvents();
         this.showScreen('welcome-screen');
+
+        // If a saved profile exists, auto-connect on start button click
+        if (this.playerName && this.playerAvatar) {
+            this._hasSavedProfile = true;
+        }
     },
 
     loadProgress() {
@@ -34,6 +39,15 @@ const App = {
                 this.dontShowInstructions = data.dontShowInstructions || {};
             }
         } catch (e) { /* ignorer */ }
+        // Restore player profile
+        try {
+            const profile = localStorage.getItem('kidin-profile');
+            if (profile) {
+                const p = JSON.parse(profile);
+                this.playerName = p.name || null;
+                this.playerAvatar = p.avatar || null;
+            }
+        } catch (e) { /* ignorer */ }
     },
 
     saveProgress() {
@@ -42,6 +56,15 @@ const App = {
                 totalStars: this.totalStars,
                 gameStars: this.gameStars,
                 dontShowInstructions: this.dontShowInstructions
+            }));
+        } catch (e) { /* ignorer */ }
+    },
+
+    saveProfile() {
+        try {
+            localStorage.setItem('kidin-profile', JSON.stringify({
+                name: this.playerName,
+                avatar: this.playerAvatar
             }));
         } catch (e) { /* ignorer */ }
     },
@@ -110,8 +133,21 @@ const App = {
 
     bindEvents() {
         // Accueil -> Player Select
-        document.getElementById('start-btn').addEventListener('click', () => {
+        document.getElementById('start-btn').addEventListener('click', async () => {
             Sound.play('click');
+            // Skip player select if we already have a saved profile
+            if (this._hasSavedProfile) {
+                this.showScreen('play-mode-screen');
+                this._updateConnectionIndicator(false);
+                try {
+                    await Multiplayer.connect();
+                    this._updateConnectionIndicator(true);
+                    Multiplayer.registerOnline(this.playerAvatar, this.playerName);
+                } catch (e) {
+                    this._updateConnectionIndicator(false);
+                }
+                return;
+            }
             this.showScreen('player-select-screen');
         });
 
@@ -472,6 +508,7 @@ const App = {
                 card.classList.add('selected');
                 this.playerAvatar = card.dataset.player;
                 this.playerName = card.dataset.name;
+                this.saveProfile();
 
                 document.getElementById('profile-creation-panel').classList.add('hidden');
 
@@ -520,6 +557,7 @@ const App = {
 
             this.playerName = name;
             this.playerAvatar = this._selfieBase64;
+            this.saveProfile();
             this._stopProfileCamera();
             document.getElementById('profile-creation-panel').classList.add('hidden');
 
@@ -607,6 +645,7 @@ const App = {
             Multiplayer.disconnect();
             document.getElementById('invite-overlay').classList.add('hidden');
             document.getElementById('incoming-call-overlay').classList.add('hidden');
+            this._hasSavedProfile = false; // Allow re-picking profile
             this.showScreen('player-select-screen');
         });
 
