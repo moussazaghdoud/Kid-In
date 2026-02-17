@@ -1101,22 +1101,22 @@ const App = {
     // ==================== ONLINE PLAYERS GRID ====================
     _renderOnlinePlayers(players) {
         const grid = document.getElementById('online-players-grid');
-        const empty = document.getElementById('online-empty');
         const inviteBtn = document.getElementById('btn-invite');
 
         // Filter out self
         const others = players.filter(p => p.id !== Multiplayer.playerId);
 
+        // Clear grid but preserve structure
+        grid.innerHTML = '';
+
         if (others.length === 0) {
-            grid.innerHTML = '';
-            empty.classList.remove('hidden');
+            const empty = document.createElement('p');
+            empty.className = 'online-empty';
+            empty.textContent = 'Aucun autre joueur en ligne...';
             grid.appendChild(empty);
             inviteBtn.classList.add('hidden');
             return;
         }
-
-        empty.classList.add('hidden');
-        grid.innerHTML = '';
 
         others.forEach(p => {
             const card = document.createElement('div');
