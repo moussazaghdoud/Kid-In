@@ -5,18 +5,23 @@
    ============================================ */
 
 const AudioChat = {
-    peers: new Map(),       // peerId -> { pc, remoteAudio }
+    peers: new Map(),       // peerId -> { pc, remoteAudio, pendingIce }
     localStream: null,
     isActive: false,
     isMuted: false,
     _allPlayers: [],
     _myId: null,
+    _pendingOffers: [],     // offers received before localStream ready
+    _pendingAnswers: [],    // answers received before localStream ready
+    _earlyIce: new Map(),   // peerId -> [candidates] for peers not yet created
 
     // STUN servers
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' }
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' }
     ],
 
     async start(isHost, players, myId) {
@@ -24,9 +29,18 @@ const AudioChat = {
         this.isActive = true;
         this._allPlayers = players || Multiplayer.players;
         this._myId = myId || Multiplayer.playerId;
+        this._pendingOffers = [];
+        this._pendingAnswers = [];
+        this._earlyIce = new Map();
 
         console.log('[AudioChat] Starting mesh audio, players:', this._allPlayers.length);
         this._showUI('connecting');
+
+        // Register signaling callbacks BEFORE getUserMedia to avoid race conditions.
+        // Offers/answers that arrive while we wait for mic access are buffered.
+        Multiplayer.onRtcOffer = (msg) => this._handleOffer(msg.from, msg.data);
+        Multiplayer.onRtcAnswer = (msg) => this._handleAnswer(msg.from, msg.data);
+        Multiplayer.onRtcIce = (msg) => this._handleIce(msg.from, msg.data);
 
         try {
             this.localStream = await navigator.mediaDevices.getUserMedia({
@@ -47,17 +61,37 @@ const AudioChat = {
             return;
         }
 
-        // Set up RTC signaling callbacks
-        Multiplayer.onRtcOffer = (msg) => this._handleOffer(msg.from, msg.data);
-        Multiplayer.onRtcAnswer = (msg) => this._handleAnswer(msg.from, msg.data);
-        Multiplayer.onRtcIce = (msg) => this._handleIce(msg.from, msg.data);
-
         // Create peer connections to all other players
         const otherPlayers = this._allPlayers.filter(p => p.id !== this._myId);
 
         for (const other of otherPlayers) {
             this._createPeer(other.id);
         }
+
+        // Flush any early ICE candidates for now-created peers
+        for (const [peerId, candidates] of this._earlyIce) {
+            const peer = this.peers.get(peerId);
+            if (peer) {
+                for (const c of candidates) {
+                    peer.pendingIce.push(c);
+                }
+            }
+        }
+        this._earlyIce.clear();
+
+        // Flush offers that arrived while waiting for mic
+        for (const { fromId, data } of this._pendingOffers) {
+            console.log('[AudioChat] Processing buffered offer from', fromId);
+            await this._handleOffer(fromId, data);
+        }
+        this._pendingOffers = [];
+
+        // Flush answers that arrived while waiting for mic
+        for (const { fromId, data } of this._pendingAnswers) {
+            console.log('[AudioChat] Processing buffered answer from', fromId);
+            await this._handleAnswer(fromId, data);
+        }
+        this._pendingAnswers = [];
 
         // Higher ID initiates the offer (to avoid both sides offering at once)
         for (const other of otherPlayers) {
@@ -137,6 +171,13 @@ const AudioChat = {
     async _handleOffer(fromId, data) {
         if (!this.isActive) return;
 
+        // Buffer if local stream not ready yet (still waiting for getUserMedia)
+        if (!this.localStream) {
+            console.log('[AudioChat] Buffering offer from', fromId, '(mic not ready)');
+            this._pendingOffers.push({ fromId, data });
+            return;
+        }
+
         let peer = this.peers.get(fromId);
         if (!peer) {
             this._createPeer(fromId);
@@ -163,6 +204,13 @@ const AudioChat = {
     },
 
     async _handleAnswer(fromId, data) {
+        // Buffer if local stream not ready yet
+        if (!this.localStream) {
+            console.log('[AudioChat] Buffering answer from', fromId, '(mic not ready)');
+            this._pendingAnswers.push({ fromId, data });
+            return;
+        }
+
         const peer = this.peers.get(fromId);
         if (!peer) return;
         try {
@@ -182,7 +230,12 @@ const AudioChat = {
     async _handleIce(fromId, data) {
         const peer = this.peers.get(fromId);
         if (!peer) {
-            // Buffer for later
+            // Peer not created yet - buffer in early ICE map
+            if (!this._earlyIce.has(fromId)) {
+                this._earlyIce.set(fromId, []);
+            }
+            this._earlyIce.get(fromId).push(data.candidate);
+            console.log('[AudioChat] Buffering early ICE from', fromId);
             return;
         }
         if (!peer.pc.remoteDescription) {
@@ -262,6 +315,9 @@ const AudioChat = {
         this.isMuted = false;
         this._allPlayers = [];
         this._myId = null;
+        this._pendingOffers = [];
+        this._pendingAnswers = [];
+        this._earlyIce = new Map();
 
         this._hideUI();
     },
