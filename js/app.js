@@ -133,20 +133,14 @@ const App = {
         // Accueil -> Player Select
         document.getElementById('start-btn').addEventListener('click', async () => {
             Sound.play('click');
-            // Skip player select if we already have a saved profile
-            if (this._hasSavedProfile) {
-                this.showScreen('play-mode-screen');
-                this._updateConnectionIndicator(false);
-                try {
-                    await Multiplayer.connect();
-                    this._updateConnectionIndicator(true);
-                    Multiplayer.registerOnline(this.playerAvatar, this.playerName);
-                } catch (e) {
-                    this._updateConnectionIndicator(false);
-                }
-                return;
-            }
             this.showScreen('player-select-screen');
+            // Pre-highlight saved profile card if one exists
+            if (this._hasSavedProfile && this.playerAvatar) {
+                const presetCard = document.querySelector(`.player-card[data-player="${this.playerAvatar}"]`);
+                if (presetCard) {
+                    presetCard.classList.add('selected');
+                }
+            }
         });
 
         // Retour depuis l'écran d'âge
