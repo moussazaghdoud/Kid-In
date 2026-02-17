@@ -15,35 +15,27 @@ const AudioChat = {
     _pendingAnswers: [],    // answers received before localStream ready
     _earlyIce: new Map(),   // peerId -> [candidates] for peers not yet created
     _retryTimer: null,
-    _iceServersCache: null,
+    _retryCount: 0,
+    _iceServers: null,      // resolved ICE servers (fetched once per session)
 
     // Fetch ICE servers (STUN + TURN) from the server, fallback to STUN-only
-    async _getIceServers() {
-        if (this._iceServersCache) return this._iceServersCache;
-
-        // Always have STUN as fallback
+    async _fetchIceServers() {
         const fallback = [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' }
         ];
-
         try {
             const resp = await fetch('/api/turn-credentials');
             if (resp.ok) {
                 const data = await resp.json();
                 if (data.iceServers && data.iceServers.length > 0) {
-                    console.log('[AudioChat] Got TURN servers from API');
-                    this._iceServersCache = data.iceServers;
-                    // Cache for 10 minutes then refresh
-                    setTimeout(() => { this._iceServersCache = null; }, 10 * 60 * 1000);
+                    console.log('[AudioChat] Got ICE servers from API');
                     return data.iceServers;
                 }
             }
         } catch (e) {
             console.log('[AudioChat] No TURN config, using STUN only');
         }
-
-        this._iceServersCache = fallback;
         return fallback;
     },
 
@@ -55,15 +47,18 @@ const AudioChat = {
         this._pendingOffers = [];
         this._pendingAnswers = [];
         this._earlyIce = new Map();
+        this._retryCount = 0;
 
         console.log('[AudioChat] Starting mesh audio, players:', this._allPlayers.length);
         this._showUI('connecting');
 
         // Register signaling callbacks BEFORE getUserMedia to avoid race conditions.
-        // Offers/answers that arrive while we wait for mic access are buffered.
         Multiplayer.onRtcOffer = (msg) => this._handleOffer(msg.from, msg.data);
         Multiplayer.onRtcAnswer = (msg) => this._handleAnswer(msg.from, msg.data);
         Multiplayer.onRtcIce = (msg) => this._handleIce(msg.from, msg.data);
+
+        // Fetch ICE servers (TURN + STUN) once before anything else
+        this._iceServers = await this._fetchIceServers();
 
         try {
             this.localStream = await navigator.mediaDevices.getUserMedia({
@@ -84,23 +79,14 @@ const AudioChat = {
             return;
         }
 
-        // Create peer connections to all other players
+        // Create peer connections to all other players (SYNCHRONOUS - no await)
         const otherPlayers = this._allPlayers.filter(p => p.id !== this._myId);
-
         for (const other of otherPlayers) {
-            await this._createPeer(other.id);
+            this._createPeer(other.id);
         }
 
         // Flush any early ICE candidates for now-created peers
-        for (const [peerId, candidates] of this._earlyIce) {
-            const peer = this.peers.get(peerId);
-            if (peer) {
-                for (const c of candidates) {
-                    peer.pendingIce.push(c);
-                }
-            }
-        }
-        this._earlyIce.clear();
+        this._flushEarlyIce();
 
         // Flush offers that arrived while waiting for mic
         for (const { fromId, data } of this._pendingOffers) {
@@ -127,11 +113,11 @@ const AudioChat = {
         this._retryTimer = setTimeout(() => this._retryFailedPeers(), 8000);
     },
 
-    async _createPeer(peerId) {
+    // SYNCHRONOUS - uses pre-fetched _iceServers
+    _createPeer(peerId) {
         if (this.peers.has(peerId)) return this.peers.get(peerId);
 
-        const iceServers = await this._getIceServers();
-        const pc = new RTCPeerConnection({ iceServers });
+        const pc = new RTCPeerConnection({ iceServers: this._iceServers });
 
         // Add local audio tracks
         if (this.localStream) {
@@ -160,7 +146,6 @@ const AudioChat = {
             }
         };
 
-        // Monitor both connectionState and iceConnectionState for compatibility
         pc.onconnectionstatechange = () => {
             console.log(`[AudioChat] Peer ${peerId} connectionState:`, pc.connectionState);
             if (pc.connectionState === 'connected') {
@@ -177,10 +162,9 @@ const AudioChat = {
             }
         };
 
+        // Some mobile browsers report iceConnectionState more reliably
         pc.oniceconnectionstatechange = () => {
-            console.log(`[AudioChat] Peer ${peerId} iceConnectionState:`, pc.iceConnectionState);
-            // Some browsers (especially mobile) report iceConnectionState
-            // more reliably than connectionState
+            console.log(`[AudioChat] Peer ${peerId} iceState:`, pc.iceConnectionState);
             if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
                 this._checkAllConnected();
             } else if (pc.iceConnectionState === 'failed') {
@@ -191,6 +175,18 @@ const AudioChat = {
         const peer = { pc, remoteAudio, pendingIce: [] };
         this.peers.set(peerId, peer);
         return peer;
+    },
+
+    _flushEarlyIce() {
+        for (const [peerId, candidates] of this._earlyIce) {
+            const peer = this.peers.get(peerId);
+            if (peer) {
+                for (const c of candidates) {
+                    peer.pendingIce.push(c);
+                }
+            }
+        }
+        this._earlyIce.clear();
     },
 
     async _createOffer(peerId) {
@@ -218,7 +214,8 @@ const AudioChat = {
 
         let peer = this.peers.get(fromId);
         if (!peer) {
-            peer = await this._createPeer(fromId);
+            peer = this._createPeer(fromId);  // synchronous
+            this._flushEarlyIce();             // flush any ICE that arrived for this peer
         }
 
         try {
@@ -285,7 +282,6 @@ const AudioChat = {
         }
     },
 
-    // Check if a peer is connected (using both state properties for compatibility)
     _isPeerConnected(peer) {
         const cs = peer.pc.connectionState;
         const ics = peer.pc.iceConnectionState;
@@ -296,9 +292,10 @@ const AudioChat = {
         if (!this.isActive) return;
         const peer = this.peers.get(peerId);
         if (!peer) return;
+        // Only higher ID initiates restart to avoid glare
+        if (this._myId < peerId) return;
         console.log('[AudioChat] Restarting peer', peerId);
         try {
-            // Either side can initiate ICE restart (higher ID prefers, but after timeout both can)
             const offer = await peer.pc.createOffer({ iceRestart: true });
             await peer.pc.setLocalDescription(offer);
             Multiplayer.sendRtc('rtc:offer', { sdp: offer }, peerId);
@@ -307,25 +304,23 @@ const AudioChat = {
         }
     },
 
-    // Retry any peers that haven't connected after the initial timeout
     _retryFailedPeers() {
         if (!this.isActive) return;
         let hasUnconnected = false;
         for (const [peerId, peer] of this.peers) {
             if (!this._isPeerConnected(peer)) {
                 hasUnconnected = true;
-                console.log('[AudioChat] Retrying peer', peerId, 'state:', peer.pc.connectionState, peer.pc.iceConnectionState);
+                console.log('[AudioChat] Retrying peer', peerId,
+                    'conn:', peer.pc.connectionState, 'ice:', peer.pc.iceConnectionState);
                 this._restartPeer(peerId);
             }
         }
-        // If still not all connected, retry again in 10s (up to 3 total retries)
         if (hasUnconnected) {
-            this._retryCount = (this._retryCount || 0) + 1;
+            this._retryCount++;
             if (this._retryCount < 3) {
                 this._retryTimer = setTimeout(() => this._retryFailedPeers(), 10000);
             } else {
-                console.log('[AudioChat] Max retries reached, showing connected for available peers');
-                // Show connected if at least one peer is connected
+                // After max retries, show connected if at least one peer works
                 for (const [, peer] of this.peers) {
                     if (this._isPeerConnected(peer)) {
                         this._showUI('connected');
@@ -345,7 +340,6 @@ const AudioChat = {
             }
         }
         if (allConnected && this.peers.size > 0) {
-            // Cancel retry timer since all connected
             if (this._retryTimer) {
                 clearTimeout(this._retryTimer);
                 this._retryTimer = null;
