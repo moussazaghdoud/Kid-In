@@ -447,16 +447,25 @@ const App = {
         document.getElementById('game-score-value').textContent = score;
     },
 
+    // ==================== AVATAR HELPER ====================
+    getAvatarSrc(avatar) {
+        if (!avatar) return 'images/isaac.png';
+        if (avatar.startsWith('data:')) return avatar; // base64 selfie
+        return `images/${avatar}.png`; // preset: 'isaac' or 'aissa'
+    },
+
     // ==================== MULTIPLAYER METHODS ====================
 
     bindMultiplayerEvents() {
         // Player select screen
         document.getElementById('back-to-welcome-from-player').addEventListener('click', () => {
             Sound.play('click');
+            this._stopProfileCamera();
             this.showScreen('welcome-screen');
         });
 
-        document.querySelectorAll('.player-card').forEach(card => {
+        // Preset player cards (Isaac & Aissa)
+        document.querySelectorAll('.player-card[data-player]').forEach(card => {
             card.addEventListener('click', async () => {
                 Sound.play('click');
                 document.querySelectorAll('.player-card').forEach(c => c.classList.remove('selected'));
@@ -464,26 +473,10 @@ const App = {
                 this.playerAvatar = card.dataset.player;
                 this.playerName = card.dataset.name;
 
-                // Fill play-mode-screen with the OTHER player's info
-                const otherAvatar = this.playerAvatar === 'isaac' ? 'aissa' : 'isaac';
-                const otherName = this.playerAvatar === 'isaac' ? 'Aissa' : 'Isaac';
-
-                document.getElementById('call-target-photo').src = `images/${otherAvatar}.png`;
-                document.getElementById('call-target-photo').alt = otherName;
-                document.getElementById('call-target-name').textContent = otherName;
-
-                const ring = document.getElementById('call-target-ring');
-                ring.className = 'call-target-ring ' + (otherAvatar === 'isaac' ? 'ring-blue' : 'ring-pink');
-
-                // Also set outgoing call overlay photo
-                document.getElementById('call-overlay-photo').src = `images/${otherAvatar}.png`;
-
-                // Hide call overlay if previously shown
-                document.getElementById('call-overlay').classList.add('hidden');
+                document.getElementById('profile-creation-panel').classList.add('hidden');
 
                 this.showScreen('play-mode-screen');
 
-                // Connect to WebSocket and register online (to receive incoming calls)
                 this._updateConnectionIndicator(false);
                 try {
                     await Multiplayer.connect();
@@ -495,6 +488,66 @@ const App = {
             });
         });
 
+        // New player card - show profile creation panel
+        document.getElementById('new-player-card').addEventListener('click', () => {
+            Sound.play('click');
+            document.querySelectorAll('.player-card').forEach(c => c.classList.remove('selected'));
+            document.getElementById('new-player-card').classList.add('selected');
+            const panel = document.getElementById('profile-creation-panel');
+            panel.classList.remove('hidden');
+            this._startProfileCamera();
+        });
+
+        // Capture selfie
+        document.getElementById('btn-capture-selfie').addEventListener('click', () => {
+            Sound.play('click');
+            this._captureSelfie();
+        });
+
+        // Retake selfie
+        document.getElementById('btn-retake-selfie').addEventListener('click', () => {
+            Sound.play('click');
+            this._retakeSelfie();
+        });
+
+        // Confirm profile
+        document.getElementById('btn-confirm-profile').addEventListener('click', async () => {
+            Sound.play('click');
+            const nameInput = document.getElementById('profile-name-input');
+            const name = nameInput.value.trim();
+            if (!name) { nameInput.focus(); return; }
+            if (!this._selfieBase64) return;
+
+            this.playerName = name;
+            this.playerAvatar = this._selfieBase64;
+            this._stopProfileCamera();
+            document.getElementById('profile-creation-panel').classList.add('hidden');
+
+            this.showScreen('play-mode-screen');
+
+            this._updateConnectionIndicator(false);
+            try {
+                await Multiplayer.connect();
+                this._updateConnectionIndicator(true);
+                Multiplayer.registerOnline(this.playerAvatar, this.playerName);
+            } catch (e) {
+                this._updateConnectionIndicator(false);
+            }
+        });
+
+        // Cancel profile creation
+        document.getElementById('btn-cancel-profile').addEventListener('click', () => {
+            Sound.play('click');
+            this._stopProfileCamera();
+            document.getElementById('profile-creation-panel').classList.add('hidden');
+            document.getElementById('new-player-card').classList.remove('selected');
+        });
+
+        // Name input - show confirm button when both name and selfie are ready
+        document.getElementById('profile-name-input').addEventListener('input', () => {
+            this._updateProfileConfirmBtn();
+        });
+
         // Play solo
         document.getElementById('btn-solo').addEventListener('click', () => {
             Sound.play('click');
@@ -503,43 +556,56 @@ const App = {
             this.showScreen('age-screen');
         });
 
-        // Call button
-        document.getElementById('btn-call').addEventListener('click', () => {
+        // Invite selected players
+        document.getElementById('btn-invite').addEventListener('click', () => {
             Sound.play('click');
-            const targetCharacter = this.playerAvatar === 'isaac' ? 'aissa' : 'isaac';
-            Multiplayer.initiateCall(targetCharacter);
-            // Show outgoing call overlay
-            document.getElementById('call-overlay').classList.remove('hidden');
-            document.getElementById('call-overlay-status').textContent = 'Appel en cours...';
+            const selected = [...Multiplayer._selectedInviteIds];
+            if (selected.length === 0) return;
+            Multiplayer.invitePlayers(selected);
+            // Show invite overlay
+            document.getElementById('invite-overlay').classList.remove('hidden');
+            document.getElementById('invite-overlay-status').textContent = 'Invitation envoy\u00E9e...';
+            document.getElementById('invite-accepted-count').textContent = '';
+            document.getElementById('btn-invite-start').classList.add('hidden');
         });
 
-        // Cancel call
-        document.getElementById('btn-call-cancel').addEventListener('click', () => {
+        // Cancel invite
+        document.getElementById('btn-invite-cancel').addEventListener('click', () => {
             Sound.play('click');
-            Multiplayer.cancelCall();
-            document.getElementById('call-overlay').classList.add('hidden');
+            Multiplayer.cancelInvite();
+            document.getElementById('invite-overlay').classList.add('hidden');
         });
 
-        // Accept incoming call
+        // Start game with accepted players
+        document.getElementById('btn-invite-start').addEventListener('click', () => {
+            Sound.play('click');
+            Multiplayer.startInvite();
+        });
+
+        // Accept incoming invite
         document.getElementById('btn-accept-call').addEventListener('click', () => {
             Sound.play('click');
-            Multiplayer.acceptCall();
+            if (this._pendingInviteHostId) {
+                Multiplayer.acceptInvite(this._pendingInviteHostId);
+            }
             document.getElementById('incoming-call-overlay').classList.add('hidden');
         });
 
-        // Decline incoming call
+        // Decline incoming invite
         document.getElementById('btn-decline-call').addEventListener('click', () => {
             Sound.play('click');
-            Multiplayer.declineCall();
+            if (this._pendingInviteHostId) {
+                Multiplayer.declineInvite(this._pendingInviteHostId);
+            }
             document.getElementById('incoming-call-overlay').classList.add('hidden');
         });
 
         // Back from play-mode-screen
         document.getElementById('back-to-player-from-playmode').addEventListener('click', () => {
             Sound.play('click');
-            Multiplayer.cancelCall();
+            Multiplayer.cancelInvite();
             Multiplayer.disconnect();
-            document.getElementById('call-overlay').classList.add('hidden');
+            document.getElementById('invite-overlay').classList.add('hidden');
             document.getElementById('incoming-call-overlay').classList.add('hidden');
             this.showScreen('player-select-screen');
         });
@@ -616,7 +682,6 @@ const App = {
             console.log('[App] Room error:', message);
         };
 
-        // Connection state change handler
         Multiplayer.onConnectionChange = (connected) => {
             this._updateConnectionIndicator(connected);
         };
@@ -628,46 +693,43 @@ const App = {
             }
         };
 
-        // Call system callbacks
-        Multiplayer.onCallWaiting = (msg) => {
-            document.getElementById('call-overlay-status').textContent = 'En attente...';
+        // Online players list
+        Multiplayer.onOnlineList = (players) => {
+            this._renderOnlinePlayers(players);
         };
 
-        Multiplayer.onCallRinging = (msg) => {
-            document.getElementById('call-overlay-status').textContent = '\u00C7a sonne...';
-        };
-
-        Multiplayer.onCallIncoming = (msg) => {
-            // Show incoming call overlay
-            document.getElementById('incoming-caller-photo').src = `images/${msg.callerCharacter}.png`;
-            document.getElementById('incoming-call-text').textContent = `${msg.callerName} veut jouer avec toi !`;
+        // Invite system callbacks
+        Multiplayer.onInviteIncoming = (msg) => {
+            this._pendingInviteHostId = msg.hostId;
+            const photo = document.getElementById('incoming-caller-photo');
+            photo.src = this.getAvatarSrc(msg.hostAvatar);
+            document.getElementById('incoming-call-text').textContent = `${msg.hostName} veut jouer avec toi !`;
             document.getElementById('incoming-call-overlay').classList.remove('hidden');
         };
 
-        Multiplayer.onCallMatched = (msg) => {
-            // Hide overlays
-            document.getElementById('call-overlay').classList.add('hidden');
+        Multiplayer.onInviteAccepted = (msg) => {
+            document.getElementById('invite-overlay-status').textContent = 'Invitation accept\u00E9e !';
+            document.getElementById('invite-accepted-count').textContent = `${msg.acceptedCount}/${msg.totalInvited} joueur(s) accept\u00E9(s)`;
+            document.getElementById('btn-invite-start').classList.remove('hidden');
+        };
+
+        Multiplayer.onInviteMatched = (msg) => {
+            document.getElementById('invite-overlay').classList.add('hidden');
             document.getElementById('incoming-call-overlay').classList.add('hidden');
 
-            // Set multiplayer mode
             this.isMultiplayer = true;
             this._updateMpUI();
-
-            // Wait a tick for room:joined to arrive with player list
-            this._callMatchedRoom = msg.roomCode;
+            this._inviteMatchedRoom = msg.roomCode;
         };
 
         Multiplayer.onRoomJoined = (players) => {
             console.log('[App] Room joined with players:', players.map(p => p.name).join(', '));
 
-            // If this was triggered by a call match, start audio and navigate
-            if (this._callMatchedRoom) {
-                this._callMatchedRoom = null;
+            if (this._inviteMatchedRoom) {
+                this._inviteMatchedRoom = null;
 
-                // Determine host (first player in the room)
                 Multiplayer.isHost = players.length > 0 && players[0].id === Multiplayer.playerId;
 
-                // Set partner name on waiting banners for callee
                 if (!Multiplayer.isHost) {
                     const host = players.find(p => p.id !== Multiplayer.playerId);
                     const hostName = host ? host.name : "L'h\u00F4te";
@@ -675,27 +737,23 @@ const App = {
                     document.getElementById('menu-waiting-text').textContent = `${hostName} choisit le jeu...`;
                 }
 
-                // Start audio chat
-                console.log('[App] Call matched, starting audio...');
-                AudioChat.start(Multiplayer.isHost);
+                console.log('[App] Invite matched, starting audio...');
+                AudioChat.start(Multiplayer.isHost, Multiplayer.players, Multiplayer.playerId);
 
-                // Go to age screen
                 this.showScreen('age-screen');
             }
         };
 
-        Multiplayer.onCallDeclined = (msg) => {
-            document.getElementById('call-overlay').classList.add('hidden');
-            document.getElementById('call-overlay-status').textContent = '';
+        Multiplayer.onInviteDeclined = (msg) => {
+            // A player declined - could show a notification but keep overlay open
         };
 
-        Multiplayer.onCallCancelled = (msg) => {
+        Multiplayer.onInviteCancelled = (msg) => {
             document.getElementById('incoming-call-overlay').classList.add('hidden');
         };
 
-        Multiplayer.onCallTimeout = (msg) => {
-            document.getElementById('call-overlay').classList.add('hidden');
-            document.getElementById('call-overlay-status').textContent = '';
+        Multiplayer.onInviteTimeout = (msg) => {
+            document.getElementById('invite-overlay').classList.add('hidden');
         };
 
         // WebRTC signaling callbacks
@@ -781,19 +839,25 @@ const App = {
         header.classList.remove('hidden');
         document.body.classList.add('mp-header-visible');
 
-        const me = Multiplayer.players.find(p => p.id === Multiplayer.playerId);
-        const partner = Multiplayer.getPartner();
+        const row = document.getElementById('mp-players-row');
+        row.innerHTML = '';
 
-        if (me) {
-            document.getElementById('mp-avatar-left').innerHTML = `<img src="images/${me.avatar}.png" alt="${me.name}">`;
-            document.getElementById('mp-name-left').textContent = me.name;
-            document.getElementById('mp-score-left').textContent = '0';
-        }
-        if (partner) {
-            document.getElementById('mp-avatar-right').innerHTML = `<img src="images/${partner.avatar}.png" alt="${partner.name}">`;
-            document.getElementById('mp-name-right').textContent = partner.name;
-            document.getElementById('mp-score-right').textContent = '0';
-        }
+        // Me first, then others
+        const me = Multiplayer.players.find(p => p.id === Multiplayer.playerId);
+        const others = Multiplayer.getOtherPlayers();
+        const allOrdered = me ? [me, ...others] : others;
+
+        allOrdered.forEach((p, i) => {
+            const isMe = p.id === Multiplayer.playerId;
+            const div = document.createElement('div');
+            div.className = 'mp-player' + (isMe ? ' mp-player-me' : '');
+            div.innerHTML = `
+                <div class="mp-avatar"><img src="${this.getAvatarSrc(p.avatar)}" alt="${p.name}"></div>
+                <span class="mp-player-name">${p.name}</span>
+                <span class="mp-player-score" id="mp-score-${p.id}">0</span>
+            `;
+            row.appendChild(div);
+        });
     },
 
     hideMultiplayerHeader() {
@@ -803,13 +867,10 @@ const App = {
 
     updateMultiplayerScores(scores) {
         if (!scores) return;
-        const me = Multiplayer.playerId;
-        const partner = Multiplayer.getPartner();
-        const myScore = scores[me] || 0;
-        const partnerScore = partner ? (scores[partner.id] || 0) : 0;
-
-        document.getElementById('mp-score-left').textContent = myScore;
-        document.getElementById('mp-score-right').textContent = partnerScore;
+        for (const [playerId, score] of Object.entries(scores)) {
+            const el = document.getElementById(`mp-score-${playerId}`);
+            if (el) el.textContent = score;
+        }
     },
 
     showMultiplayerResult(title, message, detail, starsEarned) {
@@ -821,35 +882,36 @@ const App = {
         detailEl.innerHTML = '';
 
         if (this._mpScores && Multiplayer.players.length >= 2) {
-            const me = Multiplayer.players.find(p => p.id === Multiplayer.playerId);
-            const partner = Multiplayer.getPartner();
-            const myScore = this._mpScores[Multiplayer.playerId] || 0;
-            const partnerScore = partner ? (this._mpScores[partner.id] || 0) : 0;
+            // Build ranked list of all players
+            const ranked = Multiplayer.players.map(p => ({
+                ...p,
+                score: this._mpScores[p.id] || 0
+            })).sort((a, b) => b.score - a.score);
 
             const scoresDiv = document.createElement('div');
-            scoresDiv.className = 'mp-result-scores';
+            scoresDiv.className = 'mp-result-rankings';
 
-            const isWinner = myScore > partnerScore;
-            const isTie = myScore === partnerScore;
-            const partnerIsWinner = partnerScore > myScore;
+            ranked.forEach((p, i) => {
+                const isWinner = i === 0 && (ranked.length === 1 || p.score > (ranked[1]?.score || 0));
+                const isTied = i > 0 && p.score === ranked[0].score;
+                const rank = i + 1;
+                const rankLabel = rank === 1 ? '\u{1F451}' : `#${rank}`;
 
-            scoresDiv.innerHTML = `
-                <div class="mp-result-player ${isWinner ? 'mp-winner' : ''}">
-                    ${isWinner ? '<span class="mp-result-crown">\u{1F451}</span>' : ''}
-                    <div class="mp-result-avatar"><img src="images/${me.avatar}.png" alt="${me.name}"></div>
-                    <span class="mp-result-name">${me.name}</span>
-                    <span class="mp-result-score">${myScore}</span>
-                </div>
-                <div class="mp-result-player ${partnerIsWinner ? 'mp-winner' : ''}">
-                    ${partnerIsWinner ? '<span class="mp-result-crown">\u{1F451}</span>' : ''}
-                    <div class="mp-result-avatar"><img src="images/${partner.avatar}.png" alt="${partner.name}"></div>
-                    <span class="mp-result-name">${partner.name}</span>
-                    <span class="mp-result-score">${partnerScore}</span>
-                </div>
-            `;
+                const entry = document.createElement('div');
+                entry.className = 'mp-result-player' + (isWinner || isTied ? ' mp-winner' : '');
+                entry.innerHTML = `
+                    <span class="mp-result-rank">${rankLabel}</span>
+                    <div class="mp-result-avatar"><img src="${this.getAvatarSrc(p.avatar)}" alt="${p.name}"></div>
+                    <span class="mp-result-name">${p.name}</span>
+                    <span class="mp-result-score">${p.score}</span>
+                `;
+                scoresDiv.appendChild(entry);
+            });
+
             detailEl.appendChild(scoresDiv);
 
-            if (isTie) {
+            // Check for tie at top
+            if (ranked.length >= 2 && ranked[0].score === ranked[1].score) {
                 detailEl.insertAdjacentHTML('beforeend', '<p style="color:var(--color-text-light);margin-top:5px;">\u00C9galit\u00E9 !</p>');
             }
         } else {
@@ -914,6 +976,137 @@ const App = {
         if (starsEarned === 3) Sound.play('excellent');
         else if (starsEarned >= 1) Sound.play('good');
         else Sound.play('tryAgain');
+    },
+
+    // ==================== PROFILE CAMERA ====================
+    _selfieBase64: null,
+    _profileStream: null,
+
+    _startProfileCamera() {
+        const video = document.getElementById('profile-camera-feed');
+        const preview = document.getElementById('profile-selfie-preview');
+        const captureBtn = document.getElementById('btn-capture-selfie');
+        const retakeBtn = document.getElementById('btn-retake-selfie');
+
+        video.classList.remove('hidden');
+        preview.classList.add('hidden');
+        captureBtn.classList.remove('hidden');
+        retakeBtn.classList.add('hidden');
+        this._selfieBase64 = null;
+        this._updateProfileConfirmBtn();
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 200 }, height: { ideal: 200 } }, audio: false })
+            .then(stream => {
+                this._profileStream = stream;
+                video.srcObject = stream;
+            })
+            .catch(err => {
+                console.error('[Profile] Camera error:', err);
+                video.style.display = 'none';
+                // Use a default avatar
+                this._selfieBase64 = null;
+            });
+    },
+
+    _stopProfileCamera() {
+        if (this._profileStream) {
+            this._profileStream.getTracks().forEach(t => t.stop());
+            this._profileStream = null;
+        }
+        const video = document.getElementById('profile-camera-feed');
+        if (video) video.srcObject = null;
+    },
+
+    _captureSelfie() {
+        const video = document.getElementById('profile-camera-feed');
+        const canvas = document.getElementById('profile-selfie-canvas');
+        const preview = document.getElementById('profile-selfie-preview');
+        const captureBtn = document.getElementById('btn-capture-selfie');
+        const retakeBtn = document.getElementById('btn-retake-selfie');
+
+        const ctx = canvas.getContext('2d');
+        // Draw video frame to 200x200 canvas
+        const size = Math.min(video.videoWidth, video.videoHeight);
+        const sx = (video.videoWidth - size) / 2;
+        const sy = (video.videoHeight - size) / 2;
+        ctx.drawImage(video, sx, sy, size, size, 0, 0, 200, 200);
+
+        this._selfieBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        preview.src = this._selfieBase64;
+
+        video.classList.add('hidden');
+        preview.classList.remove('hidden');
+        captureBtn.classList.add('hidden');
+        retakeBtn.classList.remove('hidden');
+
+        this._stopProfileCamera();
+        this._updateProfileConfirmBtn();
+    },
+
+    _retakeSelfie() {
+        this._selfieBase64 = null;
+        this._updateProfileConfirmBtn();
+        this._startProfileCamera();
+    },
+
+    _updateProfileConfirmBtn() {
+        const name = document.getElementById('profile-name-input').value.trim();
+        const btn = document.getElementById('btn-confirm-profile');
+        if (name && this._selfieBase64) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    },
+
+    // ==================== ONLINE PLAYERS GRID ====================
+    _renderOnlinePlayers(players) {
+        const grid = document.getElementById('online-players-grid');
+        const empty = document.getElementById('online-empty');
+        const inviteBtn = document.getElementById('btn-invite');
+
+        // Filter out self
+        const others = players.filter(p => p.id !== Multiplayer.playerId);
+
+        if (others.length === 0) {
+            grid.innerHTML = '';
+            empty.classList.remove('hidden');
+            grid.appendChild(empty);
+            inviteBtn.classList.add('hidden');
+            return;
+        }
+
+        empty.classList.add('hidden');
+        grid.innerHTML = '';
+
+        others.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'online-player-card' + (Multiplayer._selectedInviteIds.has(p.id) ? ' selected' : '');
+            card.dataset.playerId = p.id;
+            card.innerHTML = `
+                <div class="online-player-avatar">
+                    <img src="${this.getAvatarSrc(p.avatar)}" alt="${p.name}">
+                </div>
+                <span class="online-player-name">${p.name}</span>
+                <span class="online-player-check">\u2713</span>
+            `;
+            card.addEventListener('click', () => {
+                Sound.play('click');
+                if (Multiplayer._selectedInviteIds.has(p.id)) {
+                    Multiplayer._selectedInviteIds.delete(p.id);
+                    card.classList.remove('selected');
+                } else {
+                    if (Multiplayer._selectedInviteIds.size < 5) {
+                        Multiplayer._selectedInviteIds.add(p.id);
+                        card.classList.add('selected');
+                    }
+                }
+                inviteBtn.classList.toggle('hidden', Multiplayer._selectedInviteIds.size === 0);
+            });
+            grid.appendChild(card);
+        });
+
+        inviteBtn.classList.toggle('hidden', Multiplayer._selectedInviteIds.size === 0);
     }
 };
 

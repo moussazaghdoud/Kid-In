@@ -61,7 +61,7 @@
         <div class="screen-content" style="text-align:center;">
             <button class="btn-back" id="back-to-welcome-from-player">&#8592; Retour</button>
             <h2 class="screen-title">Qui es-tu ?</h2>
-            <p class="screen-subtitle">Choisis ton personnage !</p>
+            <p class="screen-subtitle">Choisis ton personnage ou cr&eacute;e le tien !</p>
             <div class="player-cards">
                 <div class="player-card" data-player="isaac" data-name="Isaac">
                     <div class="player-photo-ring player-ring-blue">
@@ -75,52 +75,76 @@
                     </div>
                     <span class="player-name">Aissa</span>
                 </div>
+                <div class="player-card" id="new-player-card">
+                    <div class="player-photo-ring player-ring-new">
+                        <span class="new-player-plus">+</span>
+                    </div>
+                    <span class="player-name">Nouveau</span>
+                </div>
+            </div>
+
+            <!-- Profile creation panel (hidden by default) -->
+            <div id="profile-creation-panel" class="profile-creation-panel hidden">
+                <h3 class="profile-title">Cr&eacute;e ton profil !</h3>
+                <div class="profile-camera-area">
+                    <video id="profile-camera-feed" class="profile-camera-feed" autoplay playsinline muted></video>
+                    <canvas id="profile-selfie-canvas" class="profile-selfie-canvas hidden" width="200" height="200"></canvas>
+                    <img id="profile-selfie-preview" class="profile-selfie-preview hidden" alt="Selfie">
+                </div>
+                <div class="profile-camera-btns">
+                    <button class="btn-capture" id="btn-capture-selfie">&#x1F4F8; Prendre la photo</button>
+                    <button class="btn-retake hidden" id="btn-retake-selfie">&#x1F504; Reprendre</button>
+                </div>
+                <input type="text" id="profile-name-input" class="profile-name-input" placeholder="Ton pr&eacute;nom..." maxlength="15" autocomplete="off">
+                <button class="btn-primary btn-confirm-profile hidden" id="btn-confirm-profile">C'est moi !</button>
+                <button class="btn-back btn-cancel-profile" id="btn-cancel-profile">Annuler</button>
             </div>
         </div>
     </div>
 
-    <!-- ==================== ÉCRAN MODE DE JEU (APPEL / SOLO) ==================== -->
+    <!-- ==================== ÉCRAN MODE DE JEU (LOBBY / SOLO) ==================== -->
     <div id="play-mode-screen" class="screen">
         <div class="screen-content" style="text-align:center;">
             <button class="btn-back" id="back-to-player-from-playmode">&#8592; Retour</button>
             <div id="connection-indicator" class="connection-indicator disconnected" title="D&eacute;connect&eacute;"></div>
             <h2 class="screen-title">Comment veux-tu jouer ?</h2>
-            <p class="screen-subtitle">Appelle ton ami(e) ou joue tout seul !</p>
+            <p class="screen-subtitle">Invite des amis ou joue tout seul !</p>
 
-            <div class="call-target-card" id="call-target-card">
-                <div class="call-target-ring" id="call-target-ring">
-                    <img id="call-target-photo" src="images/isaac.png" alt="" class="call-target-photo">
+            <!-- Online players grid -->
+            <div class="online-players-section">
+                <h3 class="online-title">&#x1F30D; Joueurs en ligne</h3>
+                <div id="online-players-grid" class="online-players-grid">
+                    <p class="online-empty" id="online-empty">Aucun autre joueur en ligne...</p>
                 </div>
-                <span class="call-target-name" id="call-target-name">Isaac</span>
-                <button class="btn-call" id="btn-call">&#x1F4DE; Appeler</button>
+                <button class="btn-invite hidden" id="btn-invite">&#x1F4E8; Inviter les joueurs s&eacute;lectionn&eacute;s</button>
             </div>
 
             <div class="call-divider"><span>ou</span></div>
 
             <button class="btn-solo-big" id="btn-solo">&#x1F3AE; Jouer tout seul</button>
 
-            <!-- Outgoing call overlay -->
-            <div class="call-overlay hidden" id="call-overlay">
+            <!-- Outgoing invite overlay -->
+            <div class="call-overlay hidden" id="invite-overlay">
                 <div class="call-overlay-content">
-                    <div class="call-pulse-ring">
-                        <div class="call-pulse-avatar" id="call-overlay-avatar">
-                            <img src="images/isaac.png" alt="" id="call-overlay-photo">
-                        </div>
+                    <div class="invite-status-area">
+                        <span class="invite-spinner"></span>
+                        <p class="call-overlay-status" id="invite-overlay-status">Invitation envoy&eacute;e...</p>
+                        <p class="invite-accepted-count" id="invite-accepted-count"></p>
                     </div>
-                    <p class="call-overlay-status" id="call-overlay-status">&Ccedil;a sonne...</p>
-                    <button class="btn-call-cancel" id="btn-call-cancel">Annuler</button>
+                    <button class="btn-primary btn-invite-start hidden" id="btn-invite-start">&#x1F3AE; Commencer !</button>
+                    <button class="btn-call-cancel" id="btn-invite-cancel">Annuler</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ==================== OVERLAY APPEL ENTRANT ==================== -->
+    <!-- ==================== OVERLAY INVITATION ENTRANTE ==================== -->
     <div id="incoming-call-overlay" class="incoming-call-overlay hidden">
         <div class="incoming-call-content">
             <div class="incoming-call-ring">
                 <img id="incoming-caller-photo" src="images/aissa.png" alt="" class="incoming-caller-photo">
             </div>
-            <h2 class="incoming-call-text" id="incoming-call-text">Aissa veut jouer avec toi !</h2>
+            <h2 class="incoming-call-text" id="incoming-call-text">Quelqu'un veut jouer avec toi !</h2>
             <div class="incoming-call-buttons">
                 <button class="btn-accept-call" id="btn-accept-call">&#x2705; Accepter</button>
                 <button class="btn-decline-call" id="btn-decline-call">&#x274C; Refuser</button>
@@ -372,16 +396,8 @@
     <!-- ==================== MULTIPLAYER SCORE HEADER ==================== -->
     <div id="mp-score-header" class="mp-score-header hidden">
         <button class="mp-header-nav hidden" id="mp-back-to-menu">&#8592; Menu</button>
-        <div class="mp-player mp-player-left">
-            <div class="mp-avatar" id="mp-avatar-left"></div>
-            <span class="mp-player-name" id="mp-name-left"></span>
-            <span class="mp-player-score" id="mp-score-left">0</span>
-        </div>
-        <div class="mp-vs">VS</div>
-        <div class="mp-player mp-player-right">
-            <span class="mp-player-score" id="mp-score-right">0</span>
-            <span class="mp-player-name" id="mp-name-right"></span>
-            <div class="mp-avatar" id="mp-avatar-right"></div>
+        <div class="mp-players-row" id="mp-players-row">
+            <!-- Filled dynamically by App.showMultiplayerHeader() -->
         </div>
     </div>
 

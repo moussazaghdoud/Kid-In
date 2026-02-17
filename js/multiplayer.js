@@ -14,10 +14,11 @@ const Multiplayer = {
     reconnectAttempts: 0,
     maxReconnectAttempts: 15,
     _keepAliveTimer: null,
-    _lastRoomCode: null,   // Remember room for rejoin after reconnect
+    _lastRoomCode: null,
     _lastPlayerName: null,
     _lastAvatar: null,
     _intentionalDisconnect: false,
+    _selectedInviteIds: new Set(),
     onRoomCreated: null,
     onRoomJoined: null,
     onRoomError: null,
@@ -29,14 +30,15 @@ const Multiplayer = {
     onRtcAnswer: null,
     onRtcIce: null,
     onConnectionChange: null,
-    onCallRinging: null,
-    onCallWaiting: null,
-    onCallIncoming: null,
-    onCallMatched: null,
-    onCallDeclined: null,
-    onCallCancelled: null,
-    onCallTimeout: null,
     onAgeSelected: null,
+    // New invite system callbacks
+    onOnlineList: null,
+    onInviteIncoming: null,
+    onInviteAccepted: null,
+    onInviteMatched: null,
+    onInviteDeclined: null,
+    onInviteCancelled: null,
+    onInviteTimeout: null,
 
     connect() {
         if (this.connected || this.connecting) {
@@ -91,15 +93,12 @@ const Multiplayer = {
                 console.log('[Multiplayer] Disconnected, code:', event.code);
                 if (this.onConnectionChange) this.onConnectionChange(false);
 
-                // Don't auto-reconnect if user intentionally disconnected
                 if (this._intentionalDisconnect) return;
 
-                // Remember room info for rejoin (don't clear it!)
                 if (this.roomCode) {
                     this._lastRoomCode = this.roomCode;
                 }
 
-                // Auto-reconnect with exponential backoff
                 if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
                     this.reconnectAttempts++;
                     const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts - 1), 15000);
@@ -108,7 +107,6 @@ const Multiplayer = {
                     this.connecting = false;
                     setTimeout(() => {
                         this.connect().then(() => {
-                            // After reconnect, try to rejoin the room
                             if (this._lastRoomCode && this._lastPlayerName) {
                                 console.log('[Multiplayer] Attempting to rejoin room:', this._lastRoomCode);
                                 this.send({
@@ -121,7 +119,6 @@ const Multiplayer = {
                         }).catch(() => {});
                     }, delay);
                 } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-                    // All retries exhausted - notify player
                     if (this._lastRoomCode && this.onPlayerLeft) {
                         this.onPlayerLeft({ disconnected: true, wasInRoom: this._lastRoomCode });
                     }
@@ -137,7 +134,6 @@ const Multiplayer = {
         });
     },
 
-    // Client-side keep-alive ping every 10s
     _startKeepAlive() {
         this._stopKeepAlive();
         this._keepAliveTimer = setInterval(() => {
@@ -162,7 +158,6 @@ const Multiplayer = {
                 break;
 
             case 'pong':
-                // Keep-alive response, connection is healthy
                 break;
 
             case 'room:created':
@@ -222,35 +217,36 @@ const Multiplayer = {
                 if (this.onAgeSelected) this.onAgeSelected(msg);
                 break;
 
-            case 'call:ringing':
-                if (this.onCallRinging) this.onCallRinging(msg);
+            // New invite system messages
+            case 'online:list':
+                if (this.onOnlineList) this.onOnlineList(msg.players);
                 break;
 
-            case 'call:waiting':
-                if (this.onCallWaiting) this.onCallWaiting(msg);
+            case 'invite:incoming':
+                if (this.onInviteIncoming) this.onInviteIncoming(msg);
                 break;
 
-            case 'call:incoming':
-                if (this.onCallIncoming) this.onCallIncoming(msg);
+            case 'invite:accepted':
+                if (this.onInviteAccepted) this.onInviteAccepted(msg);
                 break;
 
-            case 'call:matched':
+            case 'invite:matched':
                 this.roomCode = msg.roomCode;
                 this._lastRoomCode = msg.roomCode;
-                console.log('[Multiplayer] Call matched, room:', msg.roomCode);
-                if (this.onCallMatched) this.onCallMatched(msg);
+                console.log('[Multiplayer] Invite matched, room:', msg.roomCode);
+                if (this.onInviteMatched) this.onInviteMatched(msg);
                 break;
 
-            case 'call:declined':
-                if (this.onCallDeclined) this.onCallDeclined(msg);
+            case 'invite:declined':
+                if (this.onInviteDeclined) this.onInviteDeclined(msg);
                 break;
 
-            case 'call:cancelled':
-                if (this.onCallCancelled) this.onCallCancelled(msg);
+            case 'invite:cancelled':
+                if (this.onInviteCancelled) this.onInviteCancelled(msg);
                 break;
 
-            case 'call:timeout':
-                if (this.onCallTimeout) this.onCallTimeout(msg);
+            case 'invite:timeout':
+                if (this.onInviteTimeout) this.onInviteTimeout(msg);
                 break;
 
             case 'rtc:offer':
@@ -273,26 +269,30 @@ const Multiplayer = {
         }
     },
 
-    registerOnline(character, playerName) {
+    registerOnline(avatar, playerName) {
         this._lastPlayerName = playerName;
-        this._lastAvatar = character;
-        this.send({ type: 'call:register', character, playerName });
+        this._lastAvatar = avatar;
+        this.send({ type: 'invite:register', playerName, avatar });
     },
 
-    initiateCall(targetCharacter) {
-        this.send({ type: 'call:initiate', targetCharacter });
+    invitePlayers(targetIds) {
+        this.send({ type: 'invite:send', targetIds });
     },
 
-    cancelCall() {
-        this.send({ type: 'call:cancel' });
+    startInvite() {
+        this.send({ type: 'invite:start' });
     },
 
-    acceptCall() {
-        this.send({ type: 'call:accept' });
+    cancelInvite() {
+        this.send({ type: 'invite:cancel' });
     },
 
-    declineCall() {
-        this.send({ type: 'call:decline' });
+    acceptInvite(hostId) {
+        this.send({ type: 'invite:accept', hostId });
+    },
+
+    declineInvite(hostId) {
+        this.send({ type: 'invite:decline', hostId });
     },
 
     createRoom(playerName, avatar) {
@@ -333,12 +333,16 @@ const Multiplayer = {
         });
     },
 
-    sendRtc(type, data) {
-        this.send({ type, data });
+    sendRtc(type, data, targetId) {
+        this.send({ type, data, targetId });
     },
 
     getPartner() {
         return this.players.find(p => p.id !== this.playerId);
+    },
+
+    getOtherPlayers() {
+        return this.players.filter(p => p.id !== this.playerId);
     },
 
     disconnect() {
@@ -356,6 +360,7 @@ const Multiplayer = {
         this.isHost = false;
         this.playerId = null;
         this.reconnectAttempts = 0;
+        this._selectedInviteIds.clear();
     },
 
     isReady() {
@@ -366,7 +371,6 @@ const Multiplayer = {
 // Handle page visibility changes (mobile background/foreground)
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-        // Page came back to foreground - check if we need to reconnect
         if (Multiplayer._lastRoomCode && !Multiplayer.connected && !Multiplayer.connecting) {
             console.log('[Multiplayer] Page visible again, reconnecting...');
             Multiplayer.reconnectAttempts = 0;
@@ -396,7 +400,6 @@ const MultiplayerGameWrapper = {
 
         const gameName = game.name;
 
-        // Wrap Q&A style games (math, quiz, intrus, vf, pattern, countobj)
         if (['math', 'quiz', 'pattern', 'countobj'].includes(gameName)) {
             this._wrapQAGame(game);
         } else if (gameName === 'words') {
@@ -481,15 +484,15 @@ const MultiplayerGameWrapper = {
                 });
             }
 
-            // Show who answered
+            // Show who answered with avatar mini-image
             if (clickedBtn && msg.playerId !== Multiplayer.playerId) {
                 const indicator = document.createElement('span');
                 indicator.className = 'mp-answer-indicator';
-                indicator.textContent = msg.playerAvatar === 'isaac' ? '👦' : '👧';
+                const avatarSrc = App.getAvatarSrc(msg.playerAvatar);
+                indicator.innerHTML = `<img src="${avatarSrc}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;">`;
                 clickedBtn.appendChild(indicator);
             }
 
-            // Update multiplayer scores display
             if (msg.scores) {
                 App._mpScores = msg.scores;
                 App.updateMultiplayerScores(msg.scores);
@@ -622,7 +625,6 @@ const MultiplayerGameWrapper = {
     _wrapWordExplorer(game) {
         game._multiLocked = false;
 
-        // Wrap checkAnswer for startLetter and fillLetter modes
         const origCheck = game.checkAnswer.bind(game);
         game.checkAnswer = function(btn, selected, correct) {
             if (game._multiLocked) return;
@@ -637,13 +639,9 @@ const MultiplayerGameWrapper = {
             });
         };
 
-        // Wrap unscramble events
         const origBind = game.bindUnscrambleEvents.bind(game);
         game.bindUnscrambleEvents = function(q) {
             origBind(q);
-            // The original already bound events, but we override the completion logic
-            // by adding a mutation observer approach - simpler to just let both sides
-            // track letters and the completion sends the answer
         };
 
         Multiplayer.onGameUpdate = function(msg) {
@@ -708,7 +706,7 @@ const MultiplayerGameWrapper = {
     },
 
     _wrapMemoryMatch(game) {
-        game._multiTurn = null; // whose turn it is (alternate)
+        game._multiTurn = null;
         game._multiTurnPlayer = Multiplayer.isHost ? Multiplayer.playerId : Multiplayer.getPartner()?.id;
 
         const origFlip = game.flipCard.bind(game);
@@ -718,8 +716,6 @@ const MultiplayerGameWrapper = {
             if (game.flippedCards.length >= 2) return;
 
             const cardIndex = parseInt(card.dataset.index);
-
-            // Send flip to server
             Multiplayer.sendAction('flip', { cardIndex });
         };
 
@@ -876,18 +872,16 @@ const MultiplayerGameWrapper = {
                 diff
             });
 
-            // Show waiting message
             const display = document.getElementById('timer-display');
             if (display) display.textContent = game.formatTime(finalTime);
             const stopBtn = document.getElementById('timer-stop-btn');
             if (stopBtn) stopBtn.style.display = 'none';
             const resultArea = document.getElementById('timer-result-area');
             if (resultArea) {
-                resultArea.innerHTML = `<div class="timer-result">Ton temps : ${game.formatTime(finalTime)} \u2014 En attente de l'autre joueur...</div>`;
+                resultArea.innerHTML = `<div class="timer-result">Ton temps : ${game.formatTime(finalTime)} \u2014 En attente des autres joueurs...</div>`;
             }
         };
 
-        // Override startRound to not auto-advance
         const origStartRound = game.startRound.bind(game);
         game.startRound = function() {
             if (game.current >= game.total) {
@@ -919,39 +913,50 @@ const MultiplayerGameWrapper = {
         };
 
         Multiplayer.onGameUpdate = function(msg) {
+            if (msg.actionType === 'timer-waiting') {
+                // Show waiting count
+                const resultArea = document.getElementById('timer-result-area');
+                if (resultArea && game.stopped) {
+                    const remaining = msg.total - msg.submitted;
+                    resultArea.innerHTML = `<div class="timer-result">En attente de ${remaining} joueur${remaining > 1 ? 's' : ''}...</div>`;
+                }
+                return;
+            }
+
             if (msg.actionType !== 'timer-result') return;
 
             const resultArea = document.getElementById('timer-result-area');
-            const display = document.getElementById('timer-display');
 
-            // Find own and opponent results
+            // N-player ranked results
             const myId = Multiplayer.playerId;
-            const myResult = msg.results.find(r => r.playerId === myId);
-            const opResult = msg.results.find(r => r.playerId !== myId);
+            const results = msg.results; // already sorted by diff
+            const myResult = results.find(r => r.playerId === myId);
+            const myRank = results.findIndex(r => r.playerId === myId) + 1;
 
-            if (!myResult || !opResult) return;
-
-            const myWon = myResult.diff < opResult.diff;
-            const tie = myResult.diff === opResult.diff;
-
-            if (myWon) {
+            if (myRank === 1) {
                 Sound.play('correct');
                 App.showFeedback(true);
-            } else if (!tie) {
+            } else {
                 Sound.play('wrong');
                 App.showFeedback(false);
             }
 
-            const opName = opResult.playerName || 'Adversaire';
             if (resultArea) {
-                resultArea.innerHTML = `
-                    <div class="timer-result ${myWon ? 'timer-great' : tie ? 'timer-ok-result' : 'timer-miss-result'}">
-                        ${myWon ? 'Tu gagnes ce round !' : tie ? 'Egalit\u00E9 !' : opName + ' gagne ce round !'}
-                    </div>
-                    <div class="timer-round-detail">
-                        Toi : ${game.formatTime(myResult.time)} | ${opName} : ${game.formatTime(opResult.time)}
-                    </div>
-                `;
+                let html = `<div class="timer-result ${myRank === 1 ? 'timer-great' : 'timer-miss-result'}">
+                    ${myRank === 1 ? 'Tu gagnes ce round !' : `#${myRank} ce round`}
+                </div>`;
+                html += '<div class="timer-rankings">';
+                results.forEach((r, i) => {
+                    const isMe = r.playerId === myId;
+                    html += `<div class="timer-rank-row ${isMe ? 'timer-rank-me' : ''}">
+                        <span class="timer-rank-pos">#${i + 1}</span>
+                        <img src="${App.getAvatarSrc(r.playerAvatar || '')}" class="timer-rank-avatar" onerror="this.style.display='none'">
+                        <span class="timer-rank-name">${r.playerName || 'Joueur'}</span>
+                        <span class="timer-rank-time">${game.formatTime(r.time)}</span>
+                    </div>`;
+                });
+                html += '</div>';
+                resultArea.innerHTML = html;
             }
 
             if (msg.scores) {
@@ -961,7 +966,6 @@ const MultiplayerGameWrapper = {
 
             game.current++;
 
-            // Show next round button instead of auto-advancing
             const stopBtn = document.getElementById('timer-stop-btn');
             if (stopBtn) {
                 if (game.current < game.total) {
@@ -978,7 +982,6 @@ const MultiplayerGameWrapper = {
     },
 
     _wrapColorDraw(game) {
-        // Batch stroke sending for performance
         let strokeBuffer = [];
         let sendTimer = null;
 
@@ -986,7 +989,6 @@ const MultiplayerGameWrapper = {
         game.bindDrawEvents = function() {
             origBindDraw();
 
-            // Add partner canvas overlay
             const wrapper = game.container.querySelector('.canvas-wrapper');
             if (wrapper) {
                 const partnerCanvas = document.createElement('canvas');
@@ -999,7 +1001,6 @@ const MultiplayerGameWrapper = {
                 game._partnerCtx = partnerCanvas.getContext('2d');
             }
 
-            // Intercept draw to broadcast strokes
             const canvas = game.canvas;
 
             const origStartDraw = canvas.onmousedown;
@@ -1022,7 +1023,6 @@ const MultiplayerGameWrapper = {
                 if (currentStroke) {
                     currentStroke.points.push({ x, y });
 
-                    // Batch send every 50ms
                     if (!sendTimer) {
                         sendTimer = setTimeout(() => {
                             if (currentStroke && currentStroke.points.length > 0) {

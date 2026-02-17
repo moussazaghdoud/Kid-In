@@ -1,268 +1,226 @@
 /* ============================================
-   Audio/Video Chat - WebRTC P2P
+   Audio Chat - WebRTC Mesh (up to 6 players)
    Uses existing WebSocket signaling (rtc:offer, rtc:answer, rtc:ice)
+   One peer connection per other player in the room.
    ============================================ */
 
 const AudioChat = {
-    pc: null,           // RTCPeerConnection
-    localStream: null,  // Local microphone + camera stream
-    remoteAudio: null,  // Remote audio element
+    peers: new Map(),       // peerId -> { pc, remoteAudio }
+    localStream: null,
     isActive: false,
     isMuted: false,
-    isConnected: false,
-    isHost: false,
-    _ready: null,       // Promise that resolves when pc is set up
-    _resolveReady: null,
-    _pendingIce: [],    // Buffer ICE candidates until pc is ready
+    _allPlayers: [],
+    _myId: null,
 
-    // STUN servers (free, reliable - audio only needs STUN, not TURN)
+    // STUN servers
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' }
     ],
 
-    async start(isHost) {
+    async start(isHost, players, myId) {
         if (this.isActive) return;
         this.isActive = true;
-        this.isHost = isHost;
-        this._pendingIce = [];
+        this._allPlayers = players || Multiplayer.players;
+        this._myId = myId || Multiplayer.playerId;
 
-        // Create a promise that resolves when the peer connection is ready
-        this._ready = new Promise(resolve => { this._resolveReady = resolve; });
-
-        console.log('[AudioChat] Starting audio chat, isHost:', isHost);
+        console.log('[AudioChat] Starting mesh audio, players:', this._allPlayers.length);
         this._showUI('connecting');
 
         try {
-            // Get microphone + camera access
             this.localStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     echoCancellation: true,
                     noiseSuppression: true,
                     autoGainControl: true
                 },
-                video: {
-                    facingMode: 'user',
-                    width: { ideal: 160 },
-                    height: { ideal: 120 }
-                }
+                video: false  // Audio only for mesh
             });
-            console.log('[AudioChat] Microphone + camera access granted');
-
-            // Show local video preview
-            const localVideo = document.getElementById('local-video');
-            if (localVideo) {
-                localVideo.srcObject = this.localStream;
-            }
+            console.log('[AudioChat] Microphone access granted');
         } catch (err) {
-            // Camera might not be available - try audio-only fallback
-            // (but not if user explicitly denied permission)
-            if (err.name === 'NotFoundError' || err.name === 'NotReadableError' || err.name === 'OverconstrainedError') {
-                try {
-                    this.localStream = await navigator.mediaDevices.getUserMedia({
-                        audio: {
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                            autoGainControl: true
-                        },
-                        video: false
-                    });
-                    console.log('[AudioChat] Camera unavailable, audio-only mode');
-                } catch (err2) {
-                    console.error('[AudioChat] Microphone access denied:', err2.name);
-                    this._showUI('error', err2.name === 'NotAllowedError'
-                        ? 'Autorise le micro pour parler !'
-                        : 'Micro non disponible');
-                    this.isActive = false;
-                    return;
-                }
-            } else {
-                console.error('[AudioChat] Media access denied:', err.name);
-                this._showUI('error', err.name === 'NotAllowedError'
-                    ? 'Autorise le micro et la cam\u00e9ra !'
-                    : 'Micro non disponible');
-                this.isActive = false;
-                return;
-            }
+            console.error('[AudioChat] Microphone access denied:', err.name);
+            this._showUI('error', err.name === 'NotAllowedError'
+                ? 'Autorise le micro pour parler !'
+                : 'Micro non disponible');
+            this.isActive = false;
+            return;
         }
 
-        // Create peer connection
-        this.pc = new RTCPeerConnection({ iceServers: this.iceServers });
+        // Set up RTC signaling callbacks
+        Multiplayer.onRtcOffer = (msg) => this._handleOffer(msg.from, msg.data);
+        Multiplayer.onRtcAnswer = (msg) => this._handleAnswer(msg.from, msg.data);
+        Multiplayer.onRtcIce = (msg) => this._handleIce(msg.from, msg.data);
 
-        // Add local audio track to connection
-        this.localStream.getTracks().forEach(track => {
-            this.pc.addTrack(track, this.localStream);
-        });
+        // Create peer connections to all other players
+        const otherPlayers = this._allPlayers.filter(p => p.id !== this._myId);
 
-        // Handle remote audio + video streams
-        this.pc.ontrack = (event) => {
-            const track = event.track;
-            console.log('[AudioChat] Received remote track:', track.kind);
+        for (const other of otherPlayers) {
+            this._createPeer(other.id);
+        }
 
-            if (track.kind === 'audio') {
-                if (!this.remoteAudio) {
-                    this.remoteAudio = document.createElement('audio');
-                    this.remoteAudio.autoplay = true;
-                    this.remoteAudio.id = 'remote-audio';
-                    document.body.appendChild(this.remoteAudio);
-                }
-                this.remoteAudio.srcObject = event.streams[0];
-            } else if (track.kind === 'video') {
-                const remoteVideo = document.getElementById('remote-video');
-                if (remoteVideo) {
-                    remoteVideo.srcObject = event.streams[0];
-                    this._showVideoWidget(true);
-                }
+        // Higher ID initiates the offer (to avoid both sides offering at once)
+        for (const other of otherPlayers) {
+            if (this._myId > other.id) {
+                await this._createOffer(other.id);
             }
+        }
+    },
 
-            this.isConnected = true;
-            this._showUI('connected');
+    _createPeer(peerId) {
+        if (this.peers.has(peerId)) return this.peers.get(peerId);
+
+        const pc = new RTCPeerConnection({ iceServers: this.iceServers });
+
+        // Add local audio tracks
+        if (this.localStream) {
+            this.localStream.getAudioTracks().forEach(track => {
+                pc.addTrack(track, this.localStream);
+            });
+        }
+
+        // Create audio element for this peer's remote stream
+        const remoteAudio = document.createElement('audio');
+        remoteAudio.autoplay = true;
+        remoteAudio.id = `remote-audio-${peerId}`;
+        document.body.appendChild(remoteAudio);
+
+        pc.ontrack = (event) => {
+            console.log('[AudioChat] Received remote track from', peerId, event.track.kind);
+            if (event.track.kind === 'audio') {
+                remoteAudio.srcObject = event.streams[0];
+            }
+            this._checkAllConnected();
         };
 
-        // ICE candidate handling - send through WebSocket signaling
-        this.pc.onicecandidate = (event) => {
+        pc.onicecandidate = (event) => {
             if (event.candidate) {
-                console.log('[AudioChat] Sending ICE candidate');
-                Multiplayer.sendRtc('rtc:ice', { candidate: event.candidate });
+                Multiplayer.sendRtc('rtc:ice', { candidate: event.candidate }, peerId);
             }
         };
 
-        // Connection state monitoring with auto-recovery
-        this.pc.onconnectionstatechange = () => {
-            if (!this.pc) return;
-            console.log('[AudioChat] Connection state:', this.pc.connectionState);
-            switch (this.pc.connectionState) {
-                case 'connected':
-                    this.isConnected = true;
-                    this._showUI('connected');
-                    break;
-                case 'disconnected':
-                    this.isConnected = false;
-                    this._showUI('connecting');
-                    // WebRTC often recovers from 'disconnected' on its own
-                    // Wait 5s then try ICE restart if still disconnected
-                    setTimeout(() => {
-                        if (this.pc && this.pc.connectionState === 'disconnected') {
-                            console.log('[AudioChat] Still disconnected, attempting ICE restart');
-                            this._restartIce();
-                        }
-                    }, 5000);
-                    break;
-                case 'failed':
-                    this.isConnected = false;
-                    this._showUI('connecting');
-                    console.log('[AudioChat] Connection failed, attempting ICE restart');
-                    this._restartIce();
-                    break;
+        pc.onconnectionstatechange = () => {
+            if (!pc) return;
+            console.log(`[AudioChat] Peer ${peerId} state:`, pc.connectionState);
+            if (pc.connectionState === 'connected') {
+                this._checkAllConnected();
+            } else if (pc.connectionState === 'failed') {
+                this._restartPeer(peerId);
+            } else if (pc.connectionState === 'disconnected') {
+                setTimeout(() => {
+                    const peer = this.peers.get(peerId);
+                    if (peer && peer.pc.connectionState === 'disconnected') {
+                        this._restartPeer(peerId);
+                    }
+                }, 5000);
             }
         };
 
-        this.pc.oniceconnectionstatechange = () => {
-            if (!this.pc) return;
-            console.log('[AudioChat] ICE state:', this.pc.iceConnectionState);
-            // Also handle ICE-level failures
-            if (this.pc.iceConnectionState === 'failed') {
-                console.log('[AudioChat] ICE failed, attempting restart');
-                this._restartIce();
-            }
-        };
-
-        // Peer connection is ready - resolve the promise
-        this._resolveReady();
-        console.log('[AudioChat] Peer connection ready');
-
-        // Flush any ICE candidates that arrived while we were setting up
-        if (this._pendingIce.length > 0) {
-            console.log('[AudioChat] Flushing', this._pendingIce.length, 'buffered ICE candidates');
-            for (const candidate of this._pendingIce) {
-                try {
-                    await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
-                } catch (err) {
-                    console.error('[AudioChat] Failed to add buffered ICE:', err);
-                }
-            }
-            this._pendingIce = [];
-        }
-
-        // If host, create and send offer
-        if (isHost) {
-            await this.createOffer();
-        }
+        const peer = { pc, remoteAudio, pendingIce: [] };
+        this.peers.set(peerId, peer);
+        return peer;
     },
 
-    async createOffer() {
+    async _createOffer(peerId) {
+        const peer = this.peers.get(peerId);
+        if (!peer) return;
         try {
-            const offer = await this.pc.createOffer();
-            await this.pc.setLocalDescription(offer);
-            console.log('[AudioChat] Sending offer');
-            Multiplayer.sendRtc('rtc:offer', { sdp: offer });
+            const offer = await peer.pc.createOffer();
+            await peer.pc.setLocalDescription(offer);
+            console.log('[AudioChat] Sending offer to', peerId);
+            Multiplayer.sendRtc('rtc:offer', { sdp: offer }, peerId);
         } catch (err) {
-            console.error('[AudioChat] Failed to create offer:', err);
+            console.error('[AudioChat] Failed to create offer for', peerId, err);
         }
     },
 
-    async handleOffer(data) {
-        // Wait until peer connection is ready (handles the race condition
-        // where PC host sends offer before mobile guest finishes getUserMedia)
-        if (this._ready) {
-            await this._ready;
+    async _handleOffer(fromId, data) {
+        if (!this.isActive) return;
+
+        let peer = this.peers.get(fromId);
+        if (!peer) {
+            this._createPeer(fromId);
+            peer = this.peers.get(fromId);
         }
-        if (!this.pc) {
-            console.error('[AudioChat] handleOffer: no peer connection');
+
+        try {
+            console.log('[AudioChat] Received offer from', fromId);
+            await peer.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+
+            // Flush pending ICE
+            for (const candidate of peer.pendingIce) {
+                await peer.pc.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+            peer.pendingIce = [];
+
+            const answer = await peer.pc.createAnswer();
+            await peer.pc.setLocalDescription(answer);
+            console.log('[AudioChat] Sending answer to', fromId);
+            Multiplayer.sendRtc('rtc:answer', { sdp: answer }, fromId);
+        } catch (err) {
+            console.error('[AudioChat] Failed to handle offer from', fromId, err);
+        }
+    },
+
+    async _handleAnswer(fromId, data) {
+        const peer = this.peers.get(fromId);
+        if (!peer) return;
+        try {
+            console.log('[AudioChat] Received answer from', fromId);
+            await peer.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+
+            // Flush pending ICE
+            for (const candidate of peer.pendingIce) {
+                await peer.pc.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+            peer.pendingIce = [];
+        } catch (err) {
+            console.error('[AudioChat] Failed to handle answer from', fromId, err);
+        }
+    },
+
+    async _handleIce(fromId, data) {
+        const peer = this.peers.get(fromId);
+        if (!peer) {
+            // Buffer for later
+            return;
+        }
+        if (!peer.pc.remoteDescription) {
+            peer.pendingIce.push(data.candidate);
             return;
         }
         try {
-            console.log('[AudioChat] Received offer, setting remote description');
-            await this.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-            const answer = await this.pc.createAnswer();
-            await this.pc.setLocalDescription(answer);
-            console.log('[AudioChat] Sending answer');
-            Multiplayer.sendRtc('rtc:answer', { sdp: answer });
+            await peer.pc.addIceCandidate(new RTCIceCandidate(data.candidate));
         } catch (err) {
-            console.error('[AudioChat] Failed to handle offer:', err);
+            console.error('[AudioChat] Failed to add ICE from', fromId, err);
         }
     },
 
-    async handleAnswer(data) {
-        if (this._ready) {
-            await this._ready;
-        }
-        if (!this.pc) return;
+    async _restartPeer(peerId) {
+        if (!this.isActive) return;
+        const peer = this.peers.get(peerId);
+        if (!peer) return;
         try {
-            console.log('[AudioChat] Received answer, setting remote description');
-            await this.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        } catch (err) {
-            console.error('[AudioChat] Failed to handle answer:', err);
-        }
-    },
-
-    async handleIce(data) {
-        // If peer connection isn't ready yet, buffer the candidate
-        if (!this.pc) {
-            console.log('[AudioChat] Buffering ICE candidate (pc not ready)');
-            this._pendingIce.push(data.candidate);
-            return;
-        }
-        try {
-            await this.pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-        } catch (err) {
-            console.error('[AudioChat] Failed to add ICE candidate:', err);
-        }
-    },
-
-    async _restartIce() {
-        if (!this.pc || !this.isActive) return;
-        try {
-            // Only the host initiates the ICE restart
-            if (this.isHost) {
-                const offer = await this.pc.createOffer({ iceRestart: true });
-                await this.pc.setLocalDescription(offer);
-                console.log('[AudioChat] Sending ICE restart offer');
-                Multiplayer.sendRtc('rtc:offer', { sdp: offer });
+            if (this._myId > peerId) {
+                const offer = await peer.pc.createOffer({ iceRestart: true });
+                await peer.pc.setLocalDescription(offer);
+                Multiplayer.sendRtc('rtc:offer', { sdp: offer }, peerId);
             }
         } catch (err) {
-            console.error('[AudioChat] ICE restart failed:', err);
+            console.error('[AudioChat] ICE restart failed for', peerId, err);
+        }
+    },
+
+    _checkAllConnected() {
+        let allConnected = true;
+        for (const [, peer] of this.peers) {
+            if (peer.pc.connectionState !== 'connected') {
+                allConnected = false;
+                break;
+            }
+        }
+        if (allConnected && this.peers.size > 0) {
+            this._showUI('connected');
         }
     },
 
@@ -283,31 +241,27 @@ const AudioChat = {
             this.localStream = null;
         }
 
-        if (this.pc) {
-            this.pc.close();
-            this.pc = null;
+        for (const [peerId, peer] of this.peers) {
+            if (peer.pc) peer.pc.close();
+            if (peer.remoteAudio) {
+                peer.remoteAudio.srcObject = null;
+                peer.remoteAudio.remove();
+            }
         }
+        this.peers.clear();
 
-        if (this.remoteAudio) {
-            this.remoteAudio.srcObject = null;
-            this.remoteAudio.remove();
-            this.remoteAudio = null;
-        }
-
-        // Clean up video elements
+        // Clean up video elements (legacy)
         const localVideo = document.getElementById('local-video');
         if (localVideo) localVideo.srcObject = null;
         const remoteVideo = document.getElementById('remote-video');
         if (remoteVideo) remoteVideo.srcObject = null;
-        this._showVideoWidget(false);
+        const widget = document.getElementById('video-chat-widget');
+        if (widget) widget.classList.add('hidden');
 
         this.isActive = false;
-        this.isConnected = false;
         this.isMuted = false;
-        this.isHost = false;
-        this._ready = null;
-        this._resolveReady = null;
-        this._pendingIce = [];
+        this._allPlayers = [];
+        this._myId = null;
 
         this._hideUI();
     },
@@ -333,7 +287,7 @@ const AudioChat = {
                 muteBtn.classList.remove('hidden');
                 this._updateMuteButton();
                 setTimeout(() => {
-                    if (this.isConnected) {
+                    if (this.isActive) {
                         statusEl.textContent = '';
                     }
                 }, 3000);
@@ -367,16 +321,6 @@ const AudioChat = {
             muteBtn.innerHTML = '&#x1F3A4;';
             muteBtn.classList.remove('ac-btn-off');
             muteBtn.title = 'Couper le micro';
-        }
-    },
-
-    _showVideoWidget(show) {
-        const widget = document.getElementById('video-chat-widget');
-        if (!widget) return;
-        if (show) {
-            widget.classList.remove('hidden');
-        } else {
-            widget.classList.add('hidden');
         }
     }
 };

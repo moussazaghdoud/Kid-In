@@ -3928,3 +3928,424 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
         padding: 14px 45px;
     }
 }
+
+/* ============================================
+   NEW: Profile Creation Panel
+   ============================================ */
+.profile-creation-panel {
+    margin-top: 30px;
+    padding: 25px;
+    background: rgba(255,255,255,0.15);
+    border-radius: var(--radius-md);
+    backdrop-filter: blur(10px);
+    max-width: 350px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.profile-creation-panel.hidden { display: none; }
+
+.profile-title {
+    font-family: var(--font-title);
+    font-size: 1.3rem;
+    color: white;
+    margin-bottom: 15px;
+}
+
+.profile-camera-area {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin: 0 auto 15px;
+    border: 4px solid var(--color-yellow);
+    background: rgba(0,0,0,0.3);
+    position: relative;
+}
+
+.profile-camera-feed {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+}
+
+.profile-selfie-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.profile-selfie-canvas { display: none; }
+
+.profile-camera-btns {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.btn-capture, .btn-retake {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 0.9rem;
+    padding: 8px 18px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: rgba(255,255,255,0.25);
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-capture:hover, .btn-retake:hover {
+    background: rgba(255,255,255,0.4);
+}
+
+.profile-name-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 3px solid rgba(255,255,255,0.3);
+    border-radius: var(--radius-md);
+    background: rgba(255,255,255,0.1);
+    color: white;
+    font-family: var(--font-body);
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-align: center;
+    outline: none;
+    margin-bottom: 15px;
+    transition: border-color 0.2s;
+}
+
+.profile-name-input::placeholder {
+    color: rgba(255,255,255,0.5);
+}
+
+.profile-name-input:focus {
+    border-color: var(--color-yellow);
+}
+
+.btn-confirm-profile {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.btn-cancel-profile {
+    font-size: 0.85rem;
+    opacity: 0.7;
+}
+
+/* New player card "+" */
+.player-ring-new {
+    background: linear-gradient(135deg, var(--color-accent), var(--color-green));
+    box-shadow: 0 0 20px rgba(78,205,196,0.4);
+}
+
+.new-player-plus {
+    font-size: 3rem;
+    color: white;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* ============================================
+   NEW: Online Players Grid
+   ============================================ */
+.online-players-section {
+    margin: 20px auto;
+    max-width: 500px;
+}
+
+.online-title {
+    font-family: var(--font-title);
+    font-size: 1.1rem;
+    color: rgba(255,255,255,0.9);
+    margin-bottom: 12px;
+}
+
+.online-players-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    min-height: 60px;
+}
+
+.online-empty {
+    color: rgba(255,255,255,0.5);
+    font-size: 0.9rem;
+    padding: 15px 0;
+}
+
+.online-player-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,0.1);
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+    position: relative;
+    min-width: 80px;
+}
+
+.online-player-card:hover {
+    background: rgba(255,255,255,0.2);
+    transform: translateY(-2px);
+}
+
+.online-player-card.selected {
+    border-color: var(--color-yellow);
+    background: rgba(255,230,109,0.2);
+}
+
+.online-player-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid rgba(255,255,255,0.3);
+}
+
+.online-player-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.online-player-name {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: white;
+}
+
+.online-player-check {
+    display: none;
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 22px;
+    height: 22px;
+    background: var(--color-green);
+    color: white;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    line-height: 22px;
+    text-align: center;
+    font-weight: 700;
+}
+
+.online-player-card.selected .online-player-check {
+    display: block;
+}
+
+.btn-invite {
+    font-family: var(--font-title);
+    font-size: 1.1rem;
+    padding: 14px 35px;
+    border: none;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, #51CF66, #4ECDC4);
+    color: white;
+    cursor: pointer;
+    box-shadow: var(--shadow-md), 0 4px 0 #3aaa4f;
+    transition: all 0.2s;
+    margin-top: 15px;
+}
+
+.btn-invite:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg), 0 7px 0 #3aaa4f;
+}
+
+.btn-invite.hidden { display: none; }
+
+/* Invite overlay additions */
+.invite-status-area {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.invite-spinner {
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255,255,255,0.3);
+    border-top-color: var(--color-yellow);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.invite-accepted-count {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.9rem;
+    margin-top: 8px;
+}
+
+.btn-invite-start {
+    margin-bottom: 15px;
+}
+
+.btn-invite-start.hidden { display: none; }
+
+/* ============================================
+   UPDATED: N-Player Score Header
+   ============================================ */
+.mp-players-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 2px 0;
+    justify-content: center;
+}
+
+.mp-player-me {
+    border: 2px solid var(--color-yellow);
+    border-radius: 8px;
+    padding: 2px 6px;
+}
+
+/* ============================================
+   UPDATED: N-Player Result Rankings
+   ============================================ */
+.mp-result-rankings {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 15px 0;
+}
+
+.mp-result-rankings .mp-result-player {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 10px 15px;
+}
+
+.mp-result-rank {
+    font-family: var(--font-title);
+    font-size: 1.2rem;
+    min-width: 40px;
+    text-align: center;
+}
+
+.mp-result-rankings .mp-result-avatar {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+}
+
+.mp-result-rankings .mp-result-name {
+    flex: 1;
+    text-align: left;
+}
+
+.mp-result-rankings .mp-result-score {
+    font-size: 1.3rem;
+}
+
+/* ============================================
+   Timer N-Player Rankings
+   ============================================ */
+.timer-rankings {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.timer-rank-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 8px;
+}
+
+.timer-rank-row.timer-rank-me {
+    background: rgba(255,230,109,0.15);
+    border: 1px solid rgba(255,230,109,0.3);
+}
+
+.timer-rank-pos {
+    font-family: var(--font-title);
+    font-size: 1rem;
+    min-width: 30px;
+    color: var(--color-yellow);
+}
+
+.timer-rank-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.timer-rank-name {
+    flex: 1;
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.timer-rank-time {
+    font-family: var(--font-title);
+    font-size: 0.95rem;
+    color: var(--color-accent);
+}
+
+/* ============================================
+   Mobile overrides for new components
+   ============================================ */
+@media (max-width: 600px) {
+    .online-player-card {
+        padding: 8px 12px;
+        min-width: 70px;
+    }
+
+    .online-player-avatar {
+        width: 40px;
+        height: 40px;
+    }
+
+    .profile-camera-area {
+        width: 130px;
+        height: 130px;
+    }
+
+    .mp-players-row {
+        gap: 6px;
+        justify-content: flex-start;
+    }
+
+    .mp-player-me {
+        padding: 1px 4px;
+    }
+
+    .mp-result-rankings .mp-result-player {
+        padding: 8px 10px;
+        gap: 8px;
+    }
+
+    .mp-result-rankings .mp-result-avatar {
+        width: 30px;
+        height: 30px;
+    }
+
+    .timer-rank-row {
+        gap: 6px;
+        padding: 5px 8px;
+    }
+}
