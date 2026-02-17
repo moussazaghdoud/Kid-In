@@ -29,6 +29,7 @@ const Multiplayer = {
     onRtcOffer: null,
     onRtcAnswer: null,
     onRtcIce: null,
+    onAudioChunk: null,
     onConnectionChange: null,
     onAgeSelected: null,
     // New invite system callbacks
@@ -53,6 +54,7 @@ const Multiplayer = {
 
             try {
                 this.ws = new WebSocket(url);
+                this.ws.binaryType = 'arraybuffer';
             } catch (e) {
                 this.connecting = false;
                 reject(new Error('Connexion impossible'));
@@ -128,6 +130,16 @@ const Multiplayer = {
             };
 
             this.ws.onmessage = (event) => {
+                // Binary = audio chunk from server
+                if (event.data instanceof ArrayBuffer) {
+                    if (!this.onAudioChunk) return;
+                    // Format: [36-byte UUID][PCM Int16 data]
+                    const idBytes = new Uint8Array(event.data, 0, 36);
+                    const fromId = new TextDecoder().decode(idBytes).replace(/\0/g, '');
+                    const pcm = event.data.slice(36);
+                    this.onAudioChunk(fromId, pcm);
+                    return;
+                }
                 const msg = JSON.parse(event.data);
                 this._handleMessage(msg);
             };
@@ -335,6 +347,12 @@ const Multiplayer = {
 
     sendRtc(type, data, targetId) {
         this.send({ type, data, targetId });
+    },
+
+    sendAudio(pcmArrayBuffer) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(pcmArrayBuffer);
+        }
     },
 
     getPartner() {

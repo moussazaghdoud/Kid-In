@@ -177,7 +177,23 @@ wss.on('connection', (ws) => {
         ws.missedPings = 0;
     });
 
-    ws.on('message', (raw) => {
+    ws.on('message', (raw, isBinary) => {
+        // Binary message = audio chunk, relay to room
+        if (isBinary) {
+            const room = rooms.get(ws.roomCode);
+            if (!room) return;
+            // Prepend sender UUID (36 bytes, null-padded)
+            const idBuf = Buffer.alloc(36);
+            idBuf.write(ws.playerId);
+            const relay = Buffer.concat([idBuf, raw]);
+            room.players.forEach(p => {
+                if (p.ws !== ws && p.ws.readyState === 1) {
+                    p.ws.send(relay, { binary: true });
+                }
+            });
+            return;
+        }
+
         let msg;
         try {
             msg = JSON.parse(raw);
