@@ -118,17 +118,15 @@ const App = {
             HomepageMusic.stop();
         }
 
-        // Multiplayer callee: show waiting banners and dim interactive elements
-        const isCallee = this.isMultiplayer && !Multiplayer.isHost;
-        const ageScreen = document.getElementById('age-screen');
-        const menuScreen = document.getElementById('menu-screen');
+        // In multiplayer, all players can now select age/game (no callee restrictions)
         const ageBanner = document.getElementById('age-waiting-banner');
         const menuBanner = document.getElementById('menu-waiting-banner');
-
-        if (ageBanner) ageBanner.classList.toggle('hidden', !isCallee || screenId !== 'age-screen');
-        if (menuBanner) menuBanner.classList.toggle('hidden', !isCallee || screenId !== 'menu-screen');
-        if (ageScreen) ageScreen.classList.toggle('mp-callee-dim', isCallee);
-        if (menuScreen) menuScreen.classList.toggle('mp-callee-dim', isCallee);
+        if (ageBanner) ageBanner.classList.add('hidden');
+        if (menuBanner) menuBanner.classList.add('hidden');
+        const ageScreen = document.getElementById('age-screen');
+        const menuScreen = document.getElementById('menu-screen');
+        if (ageScreen) ageScreen.classList.remove('mp-callee-dim');
+        if (menuScreen) menuScreen.classList.remove('mp-callee-dim');
     },
 
     bindEvents() {
@@ -170,7 +168,6 @@ const App = {
         // Sélection de l'âge
         document.querySelectorAll('.age-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                if (this.isMultiplayer && !Multiplayer.isHost) return; // callee can't pick
                 Sound.play('click');
                 this.age = parseInt(btn.dataset.age);
                 document.getElementById('selected-age-display').textContent = this.age;
@@ -192,10 +189,9 @@ const App = {
         // Cartes de jeux
         document.querySelectorAll('.game-card').forEach(card => {
             card.addEventListener('click', () => {
-                if (this.isMultiplayer && !Multiplayer.isHost) return; // callee can't pick
                 Sound.play('click');
                 const game = card.dataset.game;
-                if (this.isMultiplayer && Multiplayer.isHost) {
+                if (this.isMultiplayer) {
                     const totalQ = game === 'pattern' ? 8 : 10;
                     Multiplayer.selectGame(game, this.age, totalQ);
                 } else {

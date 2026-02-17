@@ -1,30 +1,41 @@
 /* ============================================
-   Audio Chat - WebSocket Audio Relay
-   Captures mic audio, sends PCM chunks via WebSocket,
-   server relays to other players in the room.
-   No WebRTC peer connections needed.
+   Audio Chat - WebRTC Mesh (up to 6 players)
+   Server-coordinated start: all players signal ready after
+   mic access, server waits for everyone, then signals go.
    ============================================ */
 
 const AudioChat = {
+    peers: new Map(),
+    localStream: null,
     isActive: false,
     isMuted: false,
-    _audioCtx: null,
-    _localStream: null,
-    _processor: null,
-    _sourceNode: null,
-    _silentGain: null,
-    _playbackSchedule: new Map(), // peerId -> { nextTime }
-    _targetSampleRate: 8000,      // telephone quality, low bandwidth
+    _allPlayers: [],
+    _myId: null,
+    _retryTimer: null,
+    _retryCount: 0,
+
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ],
 
     async start(isHost, players, myId) {
         if (this.isActive) return;
         this.isActive = true;
-        this._playbackSchedule = new Map();
+        this._allPlayers = players || Multiplayer.players;
+        this._myId = myId || Multiplayer.playerId;
+        this._retryCount = 0;
 
+        console.log('[AudioChat] Starting, players:', this._allPlayers.length);
         this._showUI('connecting');
 
+        // Register signaling callbacks
+        Multiplayer.onRtcOffer = (msg) => this._handleOffer(msg.from, msg.data);
+        Multiplayer.onRtcAnswer = (msg) => this._handleAnswer(msg.from, msg.data);
+        Multiplayer.onRtcIce = (msg) => this._handleIce(msg.from, msg.data);
+
         try {
-            this._localStream = await navigator.mediaDevices.getUserMedia({
+            this.localStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     echoCancellation: true,
                     noiseSuppression: true,
@@ -32,9 +43,9 @@ const AudioChat = {
                 },
                 video: false
             });
-            console.log('[AudioChat] Microphone access granted');
+            console.log('[AudioChat] Microphone granted');
         } catch (err) {
-            console.error('[AudioChat] Microphone access denied:', err.name);
+            console.error('[AudioChat] Mic denied:', err.name);
             this._showUI('error', err.name === 'NotAllowedError'
                 ? 'Autorise le micro pour parler !'
                 : 'Micro non disponible');
@@ -42,109 +53,241 @@ const AudioChat = {
             return;
         }
 
-        // Create AudioContext
+        // Create peer connections for all other players
+        const otherPlayers = this._allPlayers.filter(p => p.id !== this._myId);
+        for (const other of otherPlayers) {
+            this._createPeer(other.id);
+        }
+
+        // Signal to server that we are ready
+        Multiplayer.send({ type: 'rtc:ready' });
+        console.log('[AudioChat] Sent rtc:ready, waiting for all players...');
+
+        // Wait for server to confirm all players ready
         try {
-            this._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        } catch (e) {
-            console.error('[AudioChat] AudioContext not supported');
-            this._showUI('error', 'Audio non supporté');
-            this.isActive = false;
-            return;
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    console.log('[AudioChat] Timeout waiting for rtc:start, proceeding anyway');
+                    resolve();
+                }, 8000);
+
+                Multiplayer.onRtcStart = () => {
+                    clearTimeout(timeout);
+                    Multiplayer.onRtcStart = null;
+                    resolve();
+                };
+            });
+        } catch (e) { /* proceed anyway */ }
+
+        if (!this.isActive) return; // stopped while waiting
+
+        console.log('[AudioChat] All ready, starting offers');
+
+        // Higher ID creates offers (staggered for reliability)
+        for (const other of otherPlayers) {
+            if (this._myId > other.id) {
+                await this._createOffer(other.id);
+                // Small delay between offers to avoid overwhelming the browser
+                await new Promise(r => setTimeout(r, 200));
+            }
         }
 
-        if (this._audioCtx.state === 'suspended') {
-            await this._audioCtx.resume();
-        }
-
-        const nativeSR = this._audioCtx.sampleRate;
-        console.log('[AudioChat] Native sample rate:', nativeSR);
-
-        this._sourceNode = this._audioCtx.createMediaStreamSource(this._localStream);
-
-        // ScriptProcessor captures audio chunks
-        this._processor = this._audioCtx.createScriptProcessor(4096, 1, 1);
-        const downsampleRatio = nativeSR / this._targetSampleRate;
-
-        this._processor.onaudioprocess = (e) => {
-            if (this.isMuted || !this.isActive) return;
-            const input = e.inputBuffer.getChannelData(0);
-
-            // Skip silence
-            let maxVal = 0;
-            for (let i = 0; i < input.length; i++) {
-                const abs = Math.abs(input[i]);
-                if (abs > maxVal) maxVal = abs;
-            }
-            if (maxVal < 0.005) return;
-
-            // Downsample to target rate and convert to Int16
-            const outputLen = Math.floor(input.length / downsampleRatio);
-            const pcm = new Int16Array(outputLen);
-            for (let i = 0; i < outputLen; i++) {
-                const sample = input[Math.floor(i * downsampleRatio)];
-                pcm[i] = Math.max(-32768, Math.min(32767, sample * 32767));
-            }
-
-            // Send binary via WebSocket
-            Multiplayer.sendAudio(pcm.buffer);
-        };
-
-        this._sourceNode.connect(this._processor);
-
-        // Processor must connect to destination to fire events,
-        // but use a silent gain node to prevent local mic echo
-        this._silentGain = this._audioCtx.createGain();
-        this._silentGain.gain.value = 0;
-        this._processor.connect(this._silentGain);
-        this._silentGain.connect(this._audioCtx.destination);
-
-        // Receive audio from other players
-        Multiplayer.onAudioChunk = (fromId, pcmArrayBuffer) => {
-            this._playAudio(fromId, pcmArrayBuffer);
-        };
-
-        console.log('[AudioChat] Audio relay started');
-        this._showUI('connected');
+        // Retry failed peers after 8s
+        this._retryTimer = setTimeout(() => this._retryFailedPeers(), 8000);
     },
 
-    _playAudio(fromId, pcmArrayBuffer) {
-        if (!this._audioCtx || !this.isActive) return;
+    _createPeer(peerId) {
+        if (this.peers.has(peerId)) return this.peers.get(peerId);
 
-        const pcm16 = new Int16Array(pcmArrayBuffer);
-        const float32 = new Float32Array(pcm16.length);
-        for (let i = 0; i < pcm16.length; i++) {
-            float32[i] = pcm16[i] / 32768;
+        const pc = new RTCPeerConnection({ iceServers: this.iceServers });
+
+        if (this.localStream) {
+            this.localStream.getAudioTracks().forEach(track => {
+                pc.addTrack(track, this.localStream);
+            });
         }
 
-        // Create buffer at the fixed target rate (browser upsamples automatically)
-        const buffer = this._audioCtx.createBuffer(1, float32.length, this._targetSampleRate);
-        buffer.getChannelData(0).set(float32);
+        const remoteAudio = document.createElement('audio');
+        remoteAudio.autoplay = true;
+        remoteAudio.id = `remote-audio-${peerId}`;
+        document.body.appendChild(remoteAudio);
 
-        const source = this._audioCtx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(this._audioCtx.destination);
+        pc.ontrack = (event) => {
+            console.log('[AudioChat] Track from', peerId);
+            if (event.track.kind === 'audio') {
+                remoteAudio.srcObject = event.streams[0];
+            }
+            this._checkAllConnected();
+        };
 
-        // Schedule for gapless playback
-        let schedule = this._playbackSchedule.get(fromId);
-        if (!schedule) {
-            schedule = { nextTime: this._audioCtx.currentTime + 0.1 };
-            this._playbackSchedule.set(fromId, schedule);
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                Multiplayer.sendRtc('rtc:ice', { candidate: event.candidate }, peerId);
+            }
+        };
+
+        pc.onconnectionstatechange = () => {
+            console.log(`[AudioChat] ${peerId} conn:`, pc.connectionState);
+            if (pc.connectionState === 'connected') {
+                this._checkAllConnected();
+            } else if (pc.connectionState === 'failed') {
+                this._restartPeer(peerId);
+            } else if (pc.connectionState === 'disconnected') {
+                setTimeout(() => {
+                    const p = this.peers.get(peerId);
+                    if (p && p.pc.connectionState === 'disconnected') {
+                        this._restartPeer(peerId);
+                    }
+                }, 5000);
+            }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            console.log(`[AudioChat] ${peerId} ice:`, pc.iceConnectionState);
+            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                this._checkAllConnected();
+            } else if (pc.iceConnectionState === 'failed') {
+                this._restartPeer(peerId);
+            }
+        };
+
+        const peer = { pc, remoteAudio, pendingIce: [] };
+        this.peers.set(peerId, peer);
+        return peer;
+    },
+
+    async _createOffer(peerId) {
+        const peer = this.peers.get(peerId);
+        if (!peer) return;
+        try {
+            const offer = await peer.pc.createOffer();
+            await peer.pc.setLocalDescription(offer);
+            console.log('[AudioChat] Offer to', peerId);
+            Multiplayer.sendRtc('rtc:offer', { sdp: offer }, peerId);
+        } catch (err) {
+            console.error('[AudioChat] Offer failed for', peerId, err);
+        }
+    },
+
+    async _handleOffer(fromId, data) {
+        if (!this.isActive || !this.localStream) return;
+
+        let peer = this.peers.get(fromId);
+        if (!peer) {
+            peer = this._createPeer(fromId);
         }
 
-        const now = this._audioCtx.currentTime;
-        if (schedule.nextTime < now) {
-            // Gap detected - reset with small buffer
-            schedule.nextTime = now + 0.05;
-        }
+        try {
+            console.log('[AudioChat] Offer from', fromId);
+            await peer.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
 
-        source.start(schedule.nextTime);
-        schedule.nextTime += buffer.duration;
+            for (const candidate of peer.pendingIce) {
+                await peer.pc.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+            peer.pendingIce = [];
+
+            const answer = await peer.pc.createAnswer();
+            await peer.pc.setLocalDescription(answer);
+            console.log('[AudioChat] Answer to', fromId);
+            Multiplayer.sendRtc('rtc:answer', { sdp: answer }, fromId);
+        } catch (err) {
+            console.error('[AudioChat] Handle offer failed from', fromId, err);
+        }
+    },
+
+    async _handleAnswer(fromId, data) {
+        if (!this.isActive) return;
+        const peer = this.peers.get(fromId);
+        if (!peer) return;
+        try {
+            console.log('[AudioChat] Answer from', fromId);
+            await peer.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+
+            for (const candidate of peer.pendingIce) {
+                await peer.pc.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+            peer.pendingIce = [];
+        } catch (err) {
+            console.error('[AudioChat] Handle answer failed from', fromId, err);
+        }
+    },
+
+    async _handleIce(fromId, data) {
+        const peer = this.peers.get(fromId);
+        if (!peer) return;
+        if (!peer.pc.remoteDescription) {
+            peer.pendingIce.push(data.candidate);
+            return;
+        }
+        try {
+            await peer.pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+        } catch (err) {
+            console.error('[AudioChat] ICE failed from', fromId, err);
+        }
+    },
+
+    _isPeerConnected(peer) {
+        const cs = peer.pc.connectionState;
+        const ics = peer.pc.iceConnectionState;
+        return cs === 'connected' || ics === 'connected' || ics === 'completed';
+    },
+
+    async _restartPeer(peerId) {
+        if (!this.isActive) return;
+        const peer = this.peers.get(peerId);
+        if (!peer) return;
+        if (this._myId < peerId) return; // only higher ID restarts
+        console.log('[AudioChat] Restarting', peerId);
+        try {
+            const offer = await peer.pc.createOffer({ iceRestart: true });
+            await peer.pc.setLocalDescription(offer);
+            Multiplayer.sendRtc('rtc:offer', { sdp: offer }, peerId);
+        } catch (err) {
+            console.error('[AudioChat] Restart failed for', peerId, err);
+        }
+    },
+
+    _retryFailedPeers() {
+        if (!this.isActive) return;
+        let hasUnconnected = false;
+        for (const [peerId, peer] of this.peers) {
+            if (!this._isPeerConnected(peer)) {
+                hasUnconnected = true;
+                console.log('[AudioChat] Retry', peerId);
+                this._restartPeer(peerId);
+            }
+        }
+        if (hasUnconnected && ++this._retryCount < 3) {
+            this._retryTimer = setTimeout(() => this._retryFailedPeers(), 10000);
+        } else if (this._retryCount >= 3) {
+            // Show connected if at least one peer works
+            for (const [, peer] of this.peers) {
+                if (this._isPeerConnected(peer)) {
+                    this._showUI('connected');
+                    return;
+                }
+            }
+        }
+    },
+
+    _checkAllConnected() {
+        for (const [, peer] of this.peers) {
+            if (!this._isPeerConnected(peer)) return;
+        }
+        if (this.peers.size > 0) {
+            if (this._retryTimer) {
+                clearTimeout(this._retryTimer);
+                this._retryTimer = null;
+            }
+            this._retryCount = 0;
+            this._showUI('connected');
+        }
     },
 
     toggleMute() {
-        if (!this._localStream) return;
+        if (!this.localStream) return;
         this.isMuted = !this.isMuted;
-        this._localStream.getAudioTracks().forEach(track => {
+        this.localStream.getAudioTracks().forEach(track => {
             track.enabled = !this.isMuted;
         });
         this._updateMuteButton();
@@ -152,42 +295,29 @@ const AudioChat = {
 
     stop() {
         console.log('[AudioChat] Stopping');
-
-        Multiplayer.onAudioChunk = null;
-
-        if (this._processor) {
-            this._processor.disconnect();
-            this._processor = null;
-        }
-        if (this._sourceNode) {
-            this._sourceNode.disconnect();
-            this._sourceNode = null;
-        }
-        if (this._silentGain) {
-            this._silentGain.disconnect();
-            this._silentGain = null;
-        }
-        if (this._audioCtx) {
-            this._audioCtx.close().catch(() => {});
-            this._audioCtx = null;
-        }
-        if (this._localStream) {
-            this._localStream.getTracks().forEach(track => track.stop());
-            this._localStream = null;
+        if (this._retryTimer) {
+            clearTimeout(this._retryTimer);
+            this._retryTimer = null;
         }
 
-        this._playbackSchedule.clear();
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => track.stop());
+            this.localStream = null;
+        }
 
-        // Clean up legacy elements
-        const localVideo = document.getElementById('local-video');
-        if (localVideo) localVideo.srcObject = null;
-        const remoteVideo = document.getElementById('remote-video');
-        if (remoteVideo) remoteVideo.srcObject = null;
-        const widget = document.getElementById('video-chat-widget');
-        if (widget) widget.classList.add('hidden');
+        for (const [, peer] of this.peers) {
+            if (peer.pc) peer.pc.close();
+            if (peer.remoteAudio) {
+                peer.remoteAudio.srcObject = null;
+                peer.remoteAudio.remove();
+            }
+        }
+        this.peers.clear();
 
         this.isActive = false;
         this.isMuted = false;
+        this._allPlayers = [];
+        this._myId = null;
 
         this._hideUI();
     },
@@ -195,9 +325,7 @@ const AudioChat = {
     _showUI(state, errorMsg) {
         const overlay = document.getElementById('audio-chat-overlay');
         if (!overlay) return;
-
         overlay.classList.add('ac-visible');
-
         const statusEl = document.getElementById('ac-status');
         const muteBtn = document.getElementById('ac-mute-btn');
 
@@ -212,15 +340,7 @@ const AudioChat = {
                 statusEl.className = 'ac-status ac-connected';
                 muteBtn.classList.remove('hidden');
                 this._updateMuteButton();
-                setTimeout(() => {
-                    if (this.isActive) {
-                        statusEl.textContent = '';
-                    }
-                }, 3000);
-                break;
-            case 'disconnected':
-                statusEl.textContent = 'Audio d\u00e9connect\u00e9';
-                statusEl.className = 'ac-status ac-disconnected';
+                setTimeout(() => { if (this.isActive) statusEl.textContent = ''; }, 3000);
                 break;
             case 'error':
                 statusEl.textContent = errorMsg || 'Erreur audio';
@@ -231,9 +351,7 @@ const AudioChat = {
 
     _hideUI() {
         const overlay = document.getElementById('audio-chat-overlay');
-        if (overlay) {
-            overlay.classList.remove('ac-visible');
-        }
+        if (overlay) overlay.classList.remove('ac-visible');
     },
 
     _updateMuteButton() {
