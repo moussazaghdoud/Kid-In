@@ -3826,9 +3826,7 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
 }
 
 .timer-display.timer-countdown {
-    font-size: 6rem;
     color: var(--color-secondary);
-    animation: timer-pulse 0.7s ease-in-out;
 }
 
 .timer-display.timer-perfect {

@@ -960,7 +960,20 @@ const MultiplayerGameWrapper = {
             }
 
             game.current++;
-            setTimeout(() => game.startRound(), 2500);
+
+            // Show next round button instead of auto-advancing
+            const stopBtn = document.getElementById('timer-stop-btn');
+            if (stopBtn) {
+                if (game.current < game.total) {
+                    stopBtn.textContent = 'Manche suivante';
+                    stopBtn.style.display = '';
+                    stopBtn.onclick = () => game.startRound();
+                } else {
+                    stopBtn.textContent = 'Voir les r\u00E9sultats';
+                    stopBtn.style.display = '';
+                    stopBtn.onclick = () => game.endGame();
+                }
+            }
         };
     },
 

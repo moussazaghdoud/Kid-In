@@ -3684,16 +3684,14 @@ class TimerChallenge {
         const stopBtn = document.getElementById('timer-stop-btn');
         stopBtn.style.display = 'none';
         let count = 3;
-        display.textContent = count;
-        display.classList.add('timer-countdown');
+        display.textContent = '  ' + count + '  ';
 
         const countInterval = setInterval(() => {
             count--;
             if (count > 0) {
-                display.textContent = count;
+                display.textContent = '  ' + count + '  ';
             } else {
                 clearInterval(countInterval);
-                display.classList.remove('timer-countdown');
                 display.textContent = '00:00';
                 stopBtn.style.display = '';
                 onComplete();
@@ -3753,7 +3751,17 @@ class TimerChallenge {
 
         this.current++;
 
-        setTimeout(() => this.startRound(), 2000);
+        // Show next round button instead of auto-advancing
+        const stopBtn = document.getElementById('timer-stop-btn');
+        if (this.current < this.total) {
+            stopBtn.textContent = 'Manche suivante';
+            stopBtn.style.display = '';
+            stopBtn.onclick = () => this.startRound();
+        } else {
+            stopBtn.textContent = 'Voir les r\u00E9sultats';
+            stopBtn.style.display = '';
+            stopBtn.onclick = () => this.endGame();
+        }
     }
 
     endGame() {
