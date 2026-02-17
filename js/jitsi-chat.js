@@ -2,6 +2,7 @@
    Audio Chat - WebRTC Mesh (up to 6 players)
    Server-coordinated start: all players signal ready after
    mic access, server waits for everyone, then signals go.
+   Fetches TURN credentials for mobile NAT traversal.
    ============================================ */
 
 const AudioChat = {
@@ -13,11 +14,27 @@ const AudioChat = {
     _myId: null,
     _retryTimer: null,
     _retryCount: 0,
+    _connectedCount: 0,
+    _totalPeers: 0,
 
+    // Fetched from server (includes TURN)
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' }
     ],
+
+    async _fetchIceServers() {
+        try {
+            const resp = await fetch('/api/turn-credentials');
+            const data = await resp.json();
+            if (data.iceServers && data.iceServers.length > 0) {
+                this.iceServers = data.iceServers;
+                console.log('[AudioChat] ICE servers fetched:', this.iceServers.length, 'servers');
+            }
+        } catch (err) {
+            console.warn('[AudioChat] Failed to fetch TURN, using STUN only:', err.message);
+        }
+    },
 
     async start(isHost, players, myId) {
         if (this.isActive) return;
@@ -25,14 +42,21 @@ const AudioChat = {
         this._allPlayers = players || Multiplayer.players;
         this._myId = myId || Multiplayer.playerId;
         this._retryCount = 0;
+        this._connectedCount = 0;
+
+        const otherPlayers = this._allPlayers.filter(p => p.id !== this._myId);
+        this._totalPeers = otherPlayers.length;
 
         console.log('[AudioChat] Starting, players:', this._allPlayers.length);
         this._showUI('connecting');
 
-        // Register signaling callbacks
+        // Register signaling callbacks FIRST (before any async work)
         Multiplayer.onRtcOffer = (msg) => this._handleOffer(msg.from, msg.data);
         Multiplayer.onRtcAnswer = (msg) => this._handleAnswer(msg.from, msg.data);
         Multiplayer.onRtcIce = (msg) => this._handleIce(msg.from, msg.data);
+
+        // Fetch TURN credentials (critical for mobile)
+        await this._fetchIceServers();
 
         try {
             this.localStream = await navigator.mediaDevices.getUserMedia({
@@ -54,7 +78,6 @@ const AudioChat = {
         }
 
         // Create peer connections for all other players
-        const otherPlayers = this._allPlayers.filter(p => p.id !== this._myId);
         for (const other of otherPlayers) {
             this._createPeer(other.id);
         }
@@ -63,13 +86,13 @@ const AudioChat = {
         Multiplayer.send({ type: 'rtc:ready' });
         console.log('[AudioChat] Sent rtc:ready, waiting for all players...');
 
-        // Wait for server to confirm all players ready
+        // Wait for server to confirm all players ready (timeout 10s)
         try {
-            await new Promise((resolve, reject) => {
+            await new Promise((resolve) => {
                 const timeout = setTimeout(() => {
                     console.log('[AudioChat] Timeout waiting for rtc:start, proceeding anyway');
                     resolve();
-                }, 8000);
+                }, 10000);
 
                 Multiplayer.onRtcStart = () => {
                     clearTimeout(timeout);
@@ -87,19 +110,21 @@ const AudioChat = {
         for (const other of otherPlayers) {
             if (this._myId > other.id) {
                 await this._createOffer(other.id);
-                // Small delay between offers to avoid overwhelming the browser
-                await new Promise(r => setTimeout(r, 200));
+                await new Promise(r => setTimeout(r, 300));
             }
         }
 
-        // Retry failed peers after 8s
-        this._retryTimer = setTimeout(() => this._retryFailedPeers(), 8000);
+        // Retry failed peers after 6s, then 12s, then 18s
+        this._retryTimer = setTimeout(() => this._retryFailedPeers(), 6000);
     },
 
     _createPeer(peerId) {
         if (this.peers.has(peerId)) return this.peers.get(peerId);
 
-        const pc = new RTCPeerConnection({ iceServers: this.iceServers });
+        const pc = new RTCPeerConnection({
+            iceServers: this.iceServers,
+            iceCandidatePoolSize: 2
+        });
 
         if (this.localStream) {
             this.localStream.getAudioTracks().forEach(track => {
@@ -109,6 +134,7 @@ const AudioChat = {
 
         const remoteAudio = document.createElement('audio');
         remoteAudio.autoplay = true;
+        remoteAudio.playsInline = true;
         remoteAudio.id = `remote-audio-${peerId}`;
         document.body.appendChild(remoteAudio);
 
@@ -116,8 +142,9 @@ const AudioChat = {
             console.log('[AudioChat] Track from', peerId);
             if (event.track.kind === 'audio') {
                 remoteAudio.srcObject = event.streams[0];
+                // Force play on mobile (autoplay policy)
+                remoteAudio.play().catch(() => {});
             }
-            this._checkAllConnected();
         };
 
         pc.onicecandidate = (event) => {
@@ -126,34 +153,67 @@ const AudioChat = {
             }
         };
 
-        pc.onconnectionstatechange = () => {
-            console.log(`[AudioChat] ${peerId} conn:`, pc.connectionState);
-            if (pc.connectionState === 'connected') {
-                this._checkAllConnected();
-            } else if (pc.connectionState === 'failed') {
+        let wasConnected = false;
+
+        pc.oniceconnectionstatechange = () => {
+            const ics = pc.iceConnectionState;
+            console.log(`[AudioChat] ${peerId} ice: ${ics}`);
+
+            if ((ics === 'connected' || ics === 'completed') && !wasConnected) {
+                wasConnected = true;
+                this._onPeerConnected(peerId);
+            } else if (ics === 'failed') {
+                if (wasConnected) {
+                    wasConnected = false;
+                    this._onPeerDisconnected(peerId);
+                }
                 this._restartPeer(peerId);
-            } else if (pc.connectionState === 'disconnected') {
+            } else if (ics === 'disconnected') {
+                // Wait 5s then check if still disconnected
                 setTimeout(() => {
                     const p = this.peers.get(peerId);
-                    if (p && p.pc.connectionState === 'disconnected') {
+                    if (p && p.pc.iceConnectionState === 'disconnected') {
+                        if (wasConnected) {
+                            wasConnected = false;
+                            this._onPeerDisconnected(peerId);
+                        }
                         this._restartPeer(peerId);
                     }
                 }, 5000);
             }
         };
 
-        pc.oniceconnectionstatechange = () => {
-            console.log(`[AudioChat] ${peerId} ice:`, pc.iceConnectionState);
-            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-                this._checkAllConnected();
-            } else if (pc.iceConnectionState === 'failed') {
-                this._restartPeer(peerId);
-            }
-        };
-
-        const peer = { pc, remoteAudio, pendingIce: [] };
+        const peer = { pc, remoteAudio, pendingIce: [], connected: false };
         this.peers.set(peerId, peer);
         return peer;
+    },
+
+    _onPeerConnected(peerId) {
+        const peer = this.peers.get(peerId);
+        if (!peer || peer.connected) return;
+        peer.connected = true;
+        this._connectedCount++;
+        console.log(`[AudioChat] Peer ${peerId} connected (${this._connectedCount}/${this._totalPeers})`);
+
+        // Show connected as soon as ANY peer connects
+        if (this._connectedCount >= 1) {
+            this._showUI('connected');
+        }
+
+        // Cancel retries if all connected
+        if (this._connectedCount >= this._totalPeers && this._retryTimer) {
+            clearTimeout(this._retryTimer);
+            this._retryTimer = null;
+            this._retryCount = 0;
+        }
+    },
+
+    _onPeerDisconnected(peerId) {
+        const peer = this.peers.get(peerId);
+        if (!peer || !peer.connected) return;
+        peer.connected = false;
+        this._connectedCount = Math.max(0, this._connectedCount - 1);
+        console.log(`[AudioChat] Peer ${peerId} disconnected (${this._connectedCount}/${this._totalPeers})`);
     },
 
     async _createOffer(peerId) {
@@ -179,6 +239,18 @@ const AudioChat = {
 
         try {
             console.log('[AudioChat] Offer from', fromId);
+
+            // If we already have a local offer (glare), the lower ID rolls back
+            if (peer.pc.signalingState === 'have-local-offer') {
+                if (this._myId < fromId) {
+                    console.log('[AudioChat] Glare: rolling back local offer');
+                    await peer.pc.setLocalDescription({ type: 'rollback' });
+                } else {
+                    console.log('[AudioChat] Glare: ignoring remote offer (we have priority)');
+                    return;
+                }
+            }
+
             await peer.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
 
             for (const candidate of peer.pendingIce) {
@@ -226,18 +298,13 @@ const AudioChat = {
         }
     },
 
-    _isPeerConnected(peer) {
-        const cs = peer.pc.connectionState;
-        const ics = peer.pc.iceConnectionState;
-        return cs === 'connected' || ics === 'connected' || ics === 'completed';
-    },
-
     async _restartPeer(peerId) {
         if (!this.isActive) return;
         const peer = this.peers.get(peerId);
         if (!peer) return;
-        if (this._myId < peerId) return; // only higher ID restarts
-        console.log('[AudioChat] Restarting', peerId);
+        // Only higher ID initiates restart to avoid conflicts
+        if (this._myId < peerId) return;
+        console.log('[AudioChat] ICE restart for', peerId);
         try {
             const offer = await peer.pc.createOffer({ iceRestart: true });
             await peer.pc.setLocalDescription(offer);
@@ -251,36 +318,29 @@ const AudioChat = {
         if (!this.isActive) return;
         let hasUnconnected = false;
         for (const [peerId, peer] of this.peers) {
-            if (!this._isPeerConnected(peer)) {
+            if (!peer.connected) {
                 hasUnconnected = true;
-                console.log('[AudioChat] Retry', peerId);
-                this._restartPeer(peerId);
+                console.log('[AudioChat] Retry', peerId, 'ice:', peer.pc.iceConnectionState);
+                // Both sides try restart on retries (not just higher ID)
+                this._forceRestart(peerId);
             }
         }
-        if (hasUnconnected && ++this._retryCount < 3) {
-            this._retryTimer = setTimeout(() => this._retryFailedPeers(), 10000);
-        } else if (this._retryCount >= 3) {
-            // Show connected if at least one peer works
-            for (const [, peer] of this.peers) {
-                if (this._isPeerConnected(peer)) {
-                    this._showUI('connected');
-                    return;
-                }
-            }
+        if (hasUnconnected && ++this._retryCount < 5) {
+            this._retryTimer = setTimeout(() => this._retryFailedPeers(), 8000);
         }
     },
 
-    _checkAllConnected() {
-        for (const [, peer] of this.peers) {
-            if (!this._isPeerConnected(peer)) return;
-        }
-        if (this.peers.size > 0) {
-            if (this._retryTimer) {
-                clearTimeout(this._retryTimer);
-                this._retryTimer = null;
-            }
-            this._retryCount = 0;
-            this._showUI('connected');
+    async _forceRestart(peerId) {
+        if (!this.isActive) return;
+        const peer = this.peers.get(peerId);
+        if (!peer) return;
+        console.log('[AudioChat] Force restart for', peerId);
+        try {
+            const offer = await peer.pc.createOffer({ iceRestart: true });
+            await peer.pc.setLocalDescription(offer);
+            Multiplayer.sendRtc('rtc:offer', { sdp: offer }, peerId);
+        } catch (err) {
+            console.error('[AudioChat] Force restart failed for', peerId, err);
         }
     },
 
@@ -318,6 +378,8 @@ const AudioChat = {
         this.isMuted = false;
         this._allPlayers = [];
         this._myId = null;
+        this._connectedCount = 0;
+        this._totalPeers = 0;
 
         this._hideUI();
     },
@@ -336,11 +398,15 @@ const AudioChat = {
                 muteBtn.classList.add('hidden');
                 break;
             case 'connected':
-                statusEl.textContent = 'Audio connect\u00e9 !';
+                statusEl.textContent = this._connectedCount >= this._totalPeers
+                    ? 'Audio connecté !'
+                    : `Audio ${this._connectedCount}/${this._totalPeers}`;
                 statusEl.className = 'ac-status ac-connected';
                 muteBtn.classList.remove('hidden');
                 this._updateMuteButton();
-                setTimeout(() => { if (this.isActive) statusEl.textContent = ''; }, 3000);
+                if (this._connectedCount >= this._totalPeers) {
+                    setTimeout(() => { if (this.isActive) statusEl.textContent = ''; }, 3000);
+                }
                 break;
             case 'error':
                 statusEl.textContent = errorMsg || 'Erreur audio';

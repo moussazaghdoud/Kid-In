@@ -25,12 +25,15 @@ app.use(express.static(path.join(__dirname, '..')));
 // Sign up free at https://www.metered.ca/ (500 MB/month free).
 app.get('/api/turn-credentials', async (req, res) => {
     const apiKey = process.env.METERED_API_KEY;
+    const stunAndFreeTurn = [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+    ];
     if (!apiKey) {
-        // No TURN configured - clients will use STUN only
-        return res.json({ iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-        ]});
+        return res.json({ iceServers: stunAndFreeTurn });
     }
     try {
         const resp = await fetch(
@@ -40,10 +43,7 @@ app.get('/api/turn-credentials', async (req, res) => {
         res.json({ iceServers: servers });
     } catch (err) {
         console.error('[Server] Failed to fetch TURN credentials:', err.message);
-        res.json({ iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-        ]});
+        res.json({ iceServers: stunAndFreeTurn });
     }
 });
 
