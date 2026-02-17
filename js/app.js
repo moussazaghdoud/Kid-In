@@ -3702,6 +3702,11 @@ class TimerChallenge {
     updateDisplay() {
         if (this.stopped) return;
         this.elapsed = performance.now() - this.startTime;
+        if (this.elapsed >= 10000) {
+            this.elapsed = 10000;
+            this.stopTimer();
+            return;
+        }
         const display = document.getElementById('timer-display');
         if (display) {
             display.textContent = this.formatTime(this.elapsed);
