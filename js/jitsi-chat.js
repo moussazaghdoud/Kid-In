@@ -14,15 +14,38 @@ const AudioChat = {
     _pendingOffers: [],     // offers received before localStream ready
     _pendingAnswers: [],    // answers received before localStream ready
     _earlyIce: new Map(),   // peerId -> [candidates] for peers not yet created
+    _retryTimer: null,
+    _iceServersCache: null,
 
-    // STUN servers
-    iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' }
-    ],
+    // Fetch ICE servers (STUN + TURN) from the server, fallback to STUN-only
+    async _getIceServers() {
+        if (this._iceServersCache) return this._iceServersCache;
+
+        // Always have STUN as fallback
+        const fallback = [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ];
+
+        try {
+            const resp = await fetch('/api/turn-credentials');
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.iceServers && data.iceServers.length > 0) {
+                    console.log('[AudioChat] Got TURN servers from API');
+                    this._iceServersCache = data.iceServers;
+                    // Cache for 10 minutes then refresh
+                    setTimeout(() => { this._iceServersCache = null; }, 10 * 60 * 1000);
+                    return data.iceServers;
+                }
+            }
+        } catch (e) {
+            console.log('[AudioChat] No TURN config, using STUN only');
+        }
+
+        this._iceServersCache = fallback;
+        return fallback;
+    },
 
     async start(isHost, players, myId) {
         if (this.isActive) return;
@@ -49,7 +72,7 @@ const AudioChat = {
                     noiseSuppression: true,
                     autoGainControl: true
                 },
-                video: false  // Audio only for mesh
+                video: false
             });
             console.log('[AudioChat] Microphone access granted');
         } catch (err) {
@@ -65,7 +88,7 @@ const AudioChat = {
         const otherPlayers = this._allPlayers.filter(p => p.id !== this._myId);
 
         for (const other of otherPlayers) {
-            this._createPeer(other.id);
+            await this._createPeer(other.id);
         }
 
         // Flush any early ICE candidates for now-created peers
@@ -99,12 +122,16 @@ const AudioChat = {
                 await this._createOffer(other.id);
             }
         }
+
+        // Auto-retry: if not all connected after 8s, retry failed peers
+        this._retryTimer = setTimeout(() => this._retryFailedPeers(), 8000);
     },
 
-    _createPeer(peerId) {
+    async _createPeer(peerId) {
         if (this.peers.has(peerId)) return this.peers.get(peerId);
 
-        const pc = new RTCPeerConnection({ iceServers: this.iceServers });
+        const iceServers = await this._getIceServers();
+        const pc = new RTCPeerConnection({ iceServers });
 
         // Add local audio tracks
         if (this.localStream) {
@@ -133,20 +160,31 @@ const AudioChat = {
             }
         };
 
+        // Monitor both connectionState and iceConnectionState for compatibility
         pc.onconnectionstatechange = () => {
-            if (!pc) return;
-            console.log(`[AudioChat] Peer ${peerId} state:`, pc.connectionState);
+            console.log(`[AudioChat] Peer ${peerId} connectionState:`, pc.connectionState);
             if (pc.connectionState === 'connected') {
                 this._checkAllConnected();
             } else if (pc.connectionState === 'failed') {
                 this._restartPeer(peerId);
             } else if (pc.connectionState === 'disconnected') {
                 setTimeout(() => {
-                    const peer = this.peers.get(peerId);
-                    if (peer && peer.pc.connectionState === 'disconnected') {
+                    const p = this.peers.get(peerId);
+                    if (p && p.pc.connectionState === 'disconnected') {
                         this._restartPeer(peerId);
                     }
                 }, 5000);
+            }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            console.log(`[AudioChat] Peer ${peerId} iceConnectionState:`, pc.iceConnectionState);
+            // Some browsers (especially mobile) report iceConnectionState
+            // more reliably than connectionState
+            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                this._checkAllConnected();
+            } else if (pc.iceConnectionState === 'failed') {
+                this._restartPeer(peerId);
             }
         };
 
@@ -180,8 +218,7 @@ const AudioChat = {
 
         let peer = this.peers.get(fromId);
         if (!peer) {
-            this._createPeer(fromId);
-            peer = this.peers.get(fromId);
+            peer = await this._createPeer(fromId);
         }
 
         try {
@@ -235,7 +272,6 @@ const AudioChat = {
                 this._earlyIce.set(fromId, []);
             }
             this._earlyIce.get(fromId).push(data.candidate);
-            console.log('[AudioChat] Buffering early ICE from', fromId);
             return;
         }
         if (!peer.pc.remoteDescription) {
@@ -249,30 +285,72 @@ const AudioChat = {
         }
     },
 
+    // Check if a peer is connected (using both state properties for compatibility)
+    _isPeerConnected(peer) {
+        const cs = peer.pc.connectionState;
+        const ics = peer.pc.iceConnectionState;
+        return cs === 'connected' || ics === 'connected' || ics === 'completed';
+    },
+
     async _restartPeer(peerId) {
         if (!this.isActive) return;
         const peer = this.peers.get(peerId);
         if (!peer) return;
+        console.log('[AudioChat] Restarting peer', peerId);
         try {
-            if (this._myId > peerId) {
-                const offer = await peer.pc.createOffer({ iceRestart: true });
-                await peer.pc.setLocalDescription(offer);
-                Multiplayer.sendRtc('rtc:offer', { sdp: offer }, peerId);
-            }
+            // Either side can initiate ICE restart (higher ID prefers, but after timeout both can)
+            const offer = await peer.pc.createOffer({ iceRestart: true });
+            await peer.pc.setLocalDescription(offer);
+            Multiplayer.sendRtc('rtc:offer', { sdp: offer }, peerId);
         } catch (err) {
             console.error('[AudioChat] ICE restart failed for', peerId, err);
+        }
+    },
+
+    // Retry any peers that haven't connected after the initial timeout
+    _retryFailedPeers() {
+        if (!this.isActive) return;
+        let hasUnconnected = false;
+        for (const [peerId, peer] of this.peers) {
+            if (!this._isPeerConnected(peer)) {
+                hasUnconnected = true;
+                console.log('[AudioChat] Retrying peer', peerId, 'state:', peer.pc.connectionState, peer.pc.iceConnectionState);
+                this._restartPeer(peerId);
+            }
+        }
+        // If still not all connected, retry again in 10s (up to 3 total retries)
+        if (hasUnconnected) {
+            this._retryCount = (this._retryCount || 0) + 1;
+            if (this._retryCount < 3) {
+                this._retryTimer = setTimeout(() => this._retryFailedPeers(), 10000);
+            } else {
+                console.log('[AudioChat] Max retries reached, showing connected for available peers');
+                // Show connected if at least one peer is connected
+                for (const [, peer] of this.peers) {
+                    if (this._isPeerConnected(peer)) {
+                        this._showUI('connected');
+                        return;
+                    }
+                }
+            }
         }
     },
 
     _checkAllConnected() {
         let allConnected = true;
         for (const [, peer] of this.peers) {
-            if (peer.pc.connectionState !== 'connected') {
+            if (!this._isPeerConnected(peer)) {
                 allConnected = false;
                 break;
             }
         }
         if (allConnected && this.peers.size > 0) {
+            // Cancel retry timer since all connected
+            if (this._retryTimer) {
+                clearTimeout(this._retryTimer);
+                this._retryTimer = null;
+            }
+            this._retryCount = 0;
             this._showUI('connected');
         }
     },
@@ -288,6 +366,12 @@ const AudioChat = {
 
     stop() {
         console.log('[AudioChat] Stopping');
+
+        if (this._retryTimer) {
+            clearTimeout(this._retryTimer);
+            this._retryTimer = null;
+        }
+        this._retryCount = 0;
 
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => track.stop());

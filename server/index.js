@@ -20,6 +20,33 @@ if (MAINTENANCE_MODE) {
 // Serve static files from project root
 app.use(express.static(path.join(__dirname, '..')));
 
+// ==================== TURN CREDENTIALS API ====================
+// Set METERED_API_KEY env var on Railway to enable TURN relay.
+// Sign up free at https://www.metered.ca/ (500 MB/month free).
+app.get('/api/turn-credentials', async (req, res) => {
+    const apiKey = process.env.METERED_API_KEY;
+    if (!apiKey) {
+        // No TURN configured - clients will use STUN only
+        return res.json({ iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ]});
+    }
+    try {
+        const resp = await fetch(
+            `https://kiddin.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`
+        );
+        const servers = await resp.json();
+        res.json({ iceServers: servers });
+    } catch (err) {
+        console.error('[Server] Failed to fetch TURN credentials:', err.message);
+        res.json({ iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ]});
+    }
+});
+
 // ==================== ROOM MANAGEMENT ====================
 const rooms = new Map();
 const MAX_ROOM_SIZE = 6;
