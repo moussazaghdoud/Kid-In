@@ -1199,7 +1199,48 @@ const MultiplayerGameWrapper = {
             game.color = '#FF6B6B';
             game.brushSize = 8;
 
-            game.bindDrawEvents();
+            // Bind drawing events directly (avoids save-btn crash from original bindDrawEvents)
+            const canvas = game.canvas;
+            const getPos = (e) => {
+                const r = canvas.getBoundingClientRect();
+                const sx = canvas.width / r.width;
+                const sy = canvas.height / r.height;
+                if (e.touches) return { x: (e.touches[0].clientX - r.left) * sx, y: (e.touches[0].clientY - r.top) * sy };
+                return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
+            };
+            const startDraw = (e) => { e.preventDefault(); game.isDrawing = true; const p = getPos(e); game.ctx.beginPath(); game.ctx.moveTo(p.x, p.y); };
+            const draw = (e) => {
+                if (!game.isDrawing) return;
+                e.preventDefault();
+                const p = getPos(e);
+                game.ctx.lineWidth = game.brushSize;
+                game.ctx.lineCap = 'round';
+                game.ctx.lineJoin = 'round';
+                if (game.isEraser) { game.ctx.globalCompositeOperation = 'destination-out'; game.ctx.strokeStyle = 'rgba(0,0,0,1)'; }
+                else { game.ctx.globalCompositeOperation = 'source-over'; game.ctx.strokeStyle = game.color; }
+                game.ctx.lineTo(p.x, p.y);
+                game.ctx.stroke();
+            };
+            const endDraw = () => { if (game.isDrawing) { game.isDrawing = false; game.ctx.globalCompositeOperation = 'source-over'; game.saveState(); } };
+            canvas.addEventListener('mousedown', startDraw);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', endDraw);
+            canvas.addEventListener('mouseleave', endDraw);
+            canvas.addEventListener('touchstart', startDraw, { passive: false });
+            canvas.addEventListener('touchmove', draw, { passive: false });
+            canvas.addEventListener('touchend', endDraw);
+
+            // Tool buttons
+            game.container.querySelectorAll('.color-swatch').forEach(s => {
+                s.addEventListener('click', () => { game.color = s.dataset.color; game.isEraser = false; document.getElementById('eraser-btn').classList.remove('eraser-active'); game.container.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('active')); s.classList.add('active'); });
+            });
+            game.container.querySelectorAll('.brush-size-btn').forEach(b => {
+                b.addEventListener('click', () => { game.brushSize = parseInt(b.dataset.size); game.container.querySelectorAll('.brush-size-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); });
+            });
+            document.getElementById('eraser-btn').addEventListener('click', () => { game.isEraser = !game.isEraser; document.getElementById('eraser-btn').classList.toggle('eraser-active'); });
+            document.getElementById('undo-btn').addEventListener('click', () => { game.undo(); });
+            document.getElementById('clear-btn').addEventListener('click', () => { game.ctx.fillStyle = '#FFFFFF'; game.ctx.fillRect(0, 0, game.canvas.width, game.canvas.height); game.saveState(); });
+
             bindStrokeSending();
         }
 
