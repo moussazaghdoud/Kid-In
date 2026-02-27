@@ -1326,8 +1326,8 @@ const Instructions = {
             timer: {
                 icon: '\u23F1',
                 title: 'Chrono D\u00E9fi',
-                text: 'Le chrono d\u00E9marre \u00E0 000:00 et monte. Appuie sur STOP le plus pr\u00E8s possible de 150:00 ! Il y a 5 manches. Celui qui est le plus pr\u00E8s de 150 secondes gagne le point !',
-                voiceText: 'Bienvenue dans le Chrono D\u00E9fi ! Un chrono va d\u00E9marrer \u00E0 z\u00E9ro et monter. Tu dois appuyer sur le bouton Stop le plus pr\u00E8s possible de 150 secondes. Bonne chance !'
+                text: 'Le chrono d\u00E9marre \u00E0 000:00 et monte. Appuie sur STOP le plus pr\u00E8s possible de 015:00 ! Il y a 5 manches. Celui qui est le plus pr\u00E8s de 15 secondes gagne le point !',
+                voiceText: 'Bienvenue dans le Chrono D\u00E9fi ! Un chrono va d\u00E9marrer \u00E0 z\u00E9ro et monter. Tu dois appuyer sur le bouton Stop le plus pr\u00E8s possible de 15 secondes. Bonne chance !'
             }
         };
         return data[gameName] || data.math;
@@ -4007,7 +4007,7 @@ class TimerChallenge {
                 <div class="timer-round-info">Manche ${this.current + 1} / ${this.total}</div>
                 <div class="timer-display-wrapper">
                     <div class="timer-display" id="timer-display">000:00</div>
-                    <div class="timer-target">Objectif : <strong>150:00</strong></div>
+                    <div class="timer-target">Objectif : <strong>015:00</strong></div>
                 </div>
                 <button class="timer-stop-btn" id="timer-stop-btn">STOP</button>
                 <div class="timer-result-area" id="timer-result-area"></div>
@@ -4047,8 +4047,8 @@ class TimerChallenge {
     updateDisplay() {
         if (this.stopped) return;
         this.elapsed = performance.now() - this.startTime;
-        if (this.elapsed >= 150000) {
-            this.elapsed = 150000;
+        if (this.elapsed >= 15000) {
+            this.elapsed = 15000;
             this.stopTimer();
             return;
         }
@@ -4071,12 +4071,12 @@ class TimerChallenge {
         clearInterval(this.timerInterval);
 
         const finalTime = this.elapsed;
-        const target = 150000; // 150 seconds in ms
+        const target = 15000; // 15 seconds in ms
         const diff = Math.abs(finalTime - target);
 
         this.roundResults.push({ time: finalTime, diff });
 
-        if (diff < 3000) {
+        if (diff < 300) {
             this.score++;
         }
 
@@ -4084,13 +4084,13 @@ class TimerChallenge {
         const display = document.getElementById('timer-display');
         display.textContent = this.formatTime(finalTime);
 
-        if (diff < 1500) {
+        if (diff < 150) {
             display.classList.add('timer-perfect');
             resultArea.innerHTML = `<div class="timer-result timer-great">Parfait ! ${this.formatTime(finalTime)}</div>`;
-        } else if (diff < 4500) {
+        } else if (diff < 500) {
             display.classList.add('timer-good');
             resultArea.innerHTML = `<div class="timer-result timer-good-result">Tr\u00E8s proche ! ${this.formatTime(finalTime)}</div>`;
-        } else if (diff < 7500) {
+        } else if (diff < 1000) {
             resultArea.innerHTML = `<div class="timer-result timer-ok-result">Pas mal ! ${this.formatTime(finalTime)}</div>`;
         } else {
             resultArea.innerHTML = `<div class="timer-result timer-miss-result">Trop loin ! ${this.formatTime(finalTime)}</div>`;
@@ -4116,7 +4116,7 @@ class TimerChallenge {
     endGame() {
         clearInterval(this.timerInterval);
         const avgDiff = this.roundResults.reduce((sum, r) => sum + r.diff, 0) / this.roundResults.length;
-        const stars = avgDiff < 3000 ? 3 : avgDiff < 7500 ? 2 : avgDiff < 15000 ? 1 : 0;
+        const stars = avgDiff < 300 ? 3 : avgDiff < 750 ? 2 : avgDiff < 1500 ? 1 : 0;
         const bestRound = this.roundResults.reduce((best, r) => r.diff < best.diff ? r : best);
 
         App.addStars('timer', stars);

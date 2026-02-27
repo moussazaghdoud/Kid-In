@@ -671,7 +671,7 @@ wss.on('connection', (ws) => {
                         };
                         room.players.forEach(p => sendTo(p.ws, waitingMsg));
                     } else {
-                        // All players submitted - sort by diff (closest to 150s first)
+                        // All players submitted - sort by diff (closest to 15s first)
                         const results = [...submissions].sort((a, b) => a.diff - b.diff);
                         const winner = results[0];
                         const tie = results.length >= 2 && results[0].diff === results[1].diff;
