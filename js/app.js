@@ -118,6 +118,11 @@ const App = {
             HomepageMusic.stop();
         }
 
+        // Load custom profiles from server when entering player selection
+        if (screenId === 'player-select-screen') {
+            this._loadServerProfiles();
+        }
+
         // In multiplayer, all players can now select age/game (no callee restrictions)
         const ageBanner = document.getElementById('age-waiting-banner');
         const menuBanner = document.getElementById('menu-waiting-banner');
@@ -548,6 +553,8 @@ const App = {
             this.playerName = name;
             this.playerAvatar = this._selfieBase64;
             this.saveProfile();
+            // Persist profile to server so it survives across devices/sessions
+            this._saveProfileToServer(name, this._selfieBase64);
             this._stopProfileCamera();
             document.getElementById('profile-creation-panel').classList.add('hidden');
 
@@ -1088,6 +1095,80 @@ const App = {
         }
     },
 
+    // ==================== SERVER-PERSISTED PROFILES ====================
+    _saveProfileToServer(name, avatar) {
+        fetch('/api/profiles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, avatar })
+        }).catch(e => console.warn('[Profile] Server save failed:', e.message));
+    },
+
+    async _loadServerProfiles() {
+        try {
+            const resp = await fetch('/api/profiles');
+            if (!resp.ok) return;
+            const profiles = await resp.json();
+            this._renderCustomProfileCards(profiles);
+        } catch (e) {
+            console.warn('[Profile] Failed to load server profiles:', e.message);
+        }
+    },
+
+    _renderCustomProfileCards(profiles) {
+        const container = document.querySelector('.player-cards');
+        const newPlayerCard = document.getElementById('new-player-card');
+        if (!container || !newPlayerCard) return;
+
+        // Remove previously injected custom cards
+        container.querySelectorAll('.player-card[data-custom]').forEach(c => c.remove());
+
+        profiles.forEach(profile => {
+            // Don't duplicate preset names
+            if (['isaac', 'aissa'].includes(profile.name.toLowerCase())) return;
+
+            const card = document.createElement('div');
+            card.className = 'player-card';
+            card.dataset.custom = 'true';
+            card.dataset.name = profile.name;
+            card.innerHTML = `
+                <div class="player-photo-ring player-ring-new">
+                    <img src="${profile.avatar}" alt="${profile.name}" class="player-photo">
+                </div>
+                <span class="player-name">${profile.name}</span>
+            `;
+
+            // Pre-highlight if this is the currently saved profile
+            if (this._hasSavedProfile && this.playerName === profile.name) {
+                card.classList.add('selected');
+            }
+
+            card.addEventListener('click', async () => {
+                Sound.play('click');
+                document.querySelectorAll('.player-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                this.playerAvatar = profile.avatar;
+                this.playerName = profile.name;
+                this.saveProfile();
+
+                document.getElementById('profile-creation-panel').classList.add('hidden');
+
+                this.showScreen('play-mode-screen');
+
+                this._updateConnectionIndicator(false);
+                try {
+                    await Multiplayer.connect();
+                    this._updateConnectionIndicator(true);
+                    Multiplayer.registerOnline(this.playerAvatar, this.playerName);
+                } catch (e) {
+                    this._updateConnectionIndicator(false);
+                }
+            });
+
+            container.insertBefore(card, newPlayerCard);
+        });
+    },
+
     // ==================== ONLINE PLAYERS GRID ====================
     _renderOnlinePlayers(players) {
         const grid = document.getElementById('online-players-grid');
@@ -1215,8 +1296,8 @@ const Instructions = {
             timer: {
                 icon: '\u23F1',
                 title: 'Chrono D\u00E9fi',
-                text: 'Le chrono d\u00E9marre \u00E0 00:00 et monte. Appuie sur STOP le plus pr\u00E8s possible de 10:00 ! Il y a 5 manches. Celui qui est le plus pr\u00E8s de 10 secondes gagne le point !',
-                voiceText: 'Bienvenue dans le Chrono D\u00E9fi ! Un chrono va d\u00E9marrer \u00E0 z\u00E9ro et monter. Tu dois appuyer sur le bouton Stop le plus pr\u00E8s possible de 10 secondes. Bonne chance !'
+                text: 'Le chrono d\u00E9marre \u00E0 000:00 et monte. Appuie sur STOP le plus pr\u00E8s possible de 150:00 ! Il y a 5 manches. Celui qui est le plus pr\u00E8s de 150 secondes gagne le point !',
+                voiceText: 'Bienvenue dans le Chrono D\u00E9fi ! Un chrono va d\u00E9marrer \u00E0 z\u00E9ro et monter. Tu dois appuyer sur le bouton Stop le plus pr\u00E8s possible de 150 secondes. Bonne chance !'
             }
         };
         return data[gameName] || data.math;
@@ -2781,16 +2862,19 @@ class ColorDraw {
 
 // ==================== JEU : QUIZ ====================
 class QuizTime {
-    constructor(age, container) {
+    constructor(age, container, rng) {
         this.name = 'quiz';
         this.age = age;
         this.container = container;
+        this._rng = rng;
         this.score = 0;
         this.current = 0;
         this.total = 10;
         this.questions = this.getQuestions();
         this.showQuestion();
     }
+
+    _shuffle(arr) { return this._rng ? this._rng.shuffle(arr) : shuffle(arr); }
 
     getQuestions() {
         const q56 = [
@@ -2950,7 +3034,7 @@ class QuizTime {
         else if (this.age <= 8) pool = q78;
         else pool = q910;
 
-        return shuffle(pool).slice(0, this.total);
+        return this._shuffle(pool).slice(0, this.total);
     }
 
     showQuestion() {
@@ -3021,10 +3105,11 @@ class QuizTime {
 
 // ==================== JEU : TROUVE L'INTRUS ====================
 class OddOneOut {
-    constructor(age, container) {
+    constructor(age, container, rng) {
         this.name = 'intrus';
         this.age = age;
         this.container = container;
+        this._rng = rng;
         this.score = 0;
         this.current = 0;
         this.total = 10;
@@ -3032,6 +3117,8 @@ class OddOneOut {
         this.generateQuestions();
         this.showQuestion();
     }
+
+    _shuffle(arr) { return this._rng ? this._rng.shuffle(arr) : shuffle(arr); }
 
     getQuestionBank() {
         const q56 = [
@@ -3144,7 +3231,7 @@ class OddOneOut {
     }
 
     generateQuestions() {
-        const bank = shuffle(this.getQuestionBank());
+        const bank = this._shuffle(this.getQuestionBank());
         this.questions = bank.slice(0, this.total);
     }
 
@@ -3215,16 +3302,19 @@ class OddOneOut {
 
 // ==================== JEU : VRAI OU FAUX ====================
 class TrueOrFalse {
-    constructor(age, container) {
+    constructor(age, container, rng) {
         this.name = 'vf';
         this.age = age;
         this.container = container;
+        this._rng = rng;
         this.score = 0;
         this.current = 0;
         this.total = 10;
         this.questions = this.getQuestions();
         this.showQuestion();
     }
+
+    _shuffle(arr) { return this._rng ? this._rng.shuffle(arr) : shuffle(arr); }
 
     getQuestions() {
         const q56 = [
@@ -3360,7 +3450,7 @@ class TrueOrFalse {
         else if (this.age <= 8) pool = q78;
         else pool = q910;
 
-        return shuffle(pool).slice(0, this.total);
+        return this._shuffle(pool).slice(0, this.total);
     }
 
     showQuestion() {
@@ -3439,10 +3529,11 @@ class TrueOrFalse {
 
 // ==================== JEU : SUITE DE COULEURS ====================
 class ColorSequence {
-    constructor(age, container) {
+    constructor(age, container, rng) {
         this.name = 'colorseq';
         this.age = age;
         this.container = container;
+        this._rng = rng;
         this.score = 0;
         this.round = 0;
         this.sequence = [];
@@ -3540,13 +3631,14 @@ class ColorSequence {
         });
 
         // Add new color to sequence
+        const _ri = (a, b) => this._rng ? this._rng.randInt(a, b) : randInt(a, b);
         if (this.sequence.length < this.startLength) {
             // Fill initial sequence
             while (this.sequence.length < this.startLength) {
-                this.sequence.push(randInt(0, this.colorCount - 1));
+                this.sequence.push(_ri(0, this.colorCount - 1));
             }
         } else {
-            this.sequence.push(randInt(0, this.colorCount - 1));
+            this.sequence.push(_ri(0, this.colorCount - 1));
         }
 
         const statusEl = document.getElementById('cs-status');
@@ -3883,8 +3975,8 @@ class TimerChallenge {
             <div class="timer-game">
                 <div class="timer-round-info">Manche ${this.current + 1} / ${this.total}</div>
                 <div class="timer-display-wrapper">
-                    <div class="timer-display" id="timer-display">00:00</div>
-                    <div class="timer-target">Objectif : <strong>10:00</strong></div>
+                    <div class="timer-display" id="timer-display">000:00</div>
+                    <div class="timer-target">Objectif : <strong>150:00</strong></div>
                 </div>
                 <button class="timer-stop-btn" id="timer-stop-btn">STOP</button>
                 <div class="timer-result-area" id="timer-result-area"></div>
@@ -3914,7 +4006,7 @@ class TimerChallenge {
                 display.textContent = '  ' + count + '  ';
             } else {
                 clearInterval(countInterval);
-                display.textContent = '00:00';
+                display.textContent = '000:00';
                 stopBtn.style.display = '';
                 onComplete();
             }
@@ -3924,8 +4016,8 @@ class TimerChallenge {
     updateDisplay() {
         if (this.stopped) return;
         this.elapsed = performance.now() - this.startTime;
-        if (this.elapsed >= 10000) {
-            this.elapsed = 10000;
+        if (this.elapsed >= 150000) {
+            this.elapsed = 150000;
             this.stopTimer();
             return;
         }
@@ -3939,7 +4031,7 @@ class TimerChallenge {
         const totalCentiseconds = Math.floor(ms / 10);
         const seconds = Math.floor(totalCentiseconds / 100);
         const centiseconds = totalCentiseconds % 100;
-        return String(seconds).padStart(2, '0') + ':' + String(centiseconds).padStart(2, '0');
+        return String(seconds).padStart(3, '0') + ':' + String(centiseconds).padStart(2, '0');
     }
 
     stopTimer() {
@@ -3948,13 +4040,12 @@ class TimerChallenge {
         clearInterval(this.timerInterval);
 
         const finalTime = this.elapsed;
-        const target = 10000; // 10 seconds in ms
+        const target = 150000; // 150 seconds in ms
         const diff = Math.abs(finalTime - target);
-        const won = diff < 500; // within 0.5s is a "win" in solo
 
         this.roundResults.push({ time: finalTime, diff });
 
-        if (diff < 200) {
+        if (diff < 3000) {
             this.score++;
         }
 
@@ -3962,19 +4053,19 @@ class TimerChallenge {
         const display = document.getElementById('timer-display');
         display.textContent = this.formatTime(finalTime);
 
-        if (diff < 100) {
+        if (diff < 1500) {
             display.classList.add('timer-perfect');
             resultArea.innerHTML = `<div class="timer-result timer-great">Parfait ! ${this.formatTime(finalTime)}</div>`;
-        } else if (diff < 300) {
+        } else if (diff < 4500) {
             display.classList.add('timer-good');
             resultArea.innerHTML = `<div class="timer-result timer-good-result">Tr\u00E8s proche ! ${this.formatTime(finalTime)}</div>`;
-        } else if (diff < 500) {
+        } else if (diff < 7500) {
             resultArea.innerHTML = `<div class="timer-result timer-ok-result">Pas mal ! ${this.formatTime(finalTime)}</div>`;
         } else {
             resultArea.innerHTML = `<div class="timer-result timer-miss-result">Trop loin ! ${this.formatTime(finalTime)}</div>`;
         }
 
-        Sound.play(diff < 500 ? 'correct' : 'wrong');
+        Sound.play(diff < 7500 ? 'correct' : 'wrong');
 
         this.current++;
 
@@ -3994,7 +4085,7 @@ class TimerChallenge {
     endGame() {
         clearInterval(this.timerInterval);
         const avgDiff = this.roundResults.reduce((sum, r) => sum + r.diff, 0) / this.roundResults.length;
-        const stars = avgDiff < 200 ? 3 : avgDiff < 500 ? 2 : avgDiff < 1000 ? 1 : 0;
+        const stars = avgDiff < 3000 ? 3 : avgDiff < 7500 ? 2 : avgDiff < 15000 ? 1 : 0;
         const bestRound = this.roundResults.reduce((best, r) => r.diff < best.diff ? r : best);
 
         App.addStars('timer', stars);

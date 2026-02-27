@@ -3,6 +3,7 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,8 +18,67 @@ if (MAINTENANCE_MODE) {
     });
 }
 
+// JSON body parser for profile API
+app.use(express.json({ limit: '2mb' }));
+
 // Serve static files from project root
 app.use(express.static(path.join(__dirname, '..')));
+
+// ==================== PERSISTENT PROFILES ====================
+// Profiles are stored on disk so they survive restarts.
+// On Railway, mount a volume at /data for true persistence.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
+
+function ensureDataDir() {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function loadProfiles() {
+    ensureDataDir();
+    if (!fs.existsSync(PROFILES_FILE)) return [];
+    try {
+        return JSON.parse(fs.readFileSync(PROFILES_FILE, 'utf-8'));
+    } catch (e) {
+        console.error('[Server] Failed to read profiles:', e.message);
+        return [];
+    }
+}
+
+function saveProfiles(profiles) {
+    ensureDataDir();
+    fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
+}
+
+// GET /api/profiles — list all custom profiles
+app.get('/api/profiles', (req, res) => {
+    res.json(loadProfiles());
+});
+
+// POST /api/profiles — create or update a profile { name, avatar (base64) }
+app.post('/api/profiles', (req, res) => {
+    const { name, avatar } = req.body;
+    if (!name || !avatar) return res.status(400).json({ error: 'name and avatar required' });
+
+    const profiles = loadProfiles();
+    const existing = profiles.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+    if (existing >= 0) {
+        profiles[existing].avatar = avatar;
+        profiles[existing].updatedAt = new Date().toISOString();
+    } else {
+        profiles.push({ name, avatar, createdAt: new Date().toISOString() });
+    }
+    saveProfiles(profiles);
+    res.json({ ok: true });
+});
+
+// DELETE /api/profiles/:name — remove a profile
+app.delete('/api/profiles/:name', (req, res) => {
+    const profiles = loadProfiles();
+    const filtered = profiles.filter(p => p.name.toLowerCase() !== req.params.name.toLowerCase());
+    saveProfiles(filtered);
+    res.json({ ok: true });
+});
 
 // ==================== TURN CREDENTIALS API ====================
 // Set METERED_API_KEY env var on Railway to enable TURN relay.
@@ -610,7 +670,7 @@ wss.on('connection', (ws) => {
                         };
                         room.players.forEach(p => sendTo(p.ws, waitingMsg));
                     } else {
-                        // All players submitted - sort by diff (closest to 10s first)
+                        // All players submitted - sort by diff (closest to 150s first)
                         const results = [...submissions].sort((a, b) => a.diff - b.diff);
                         const winner = results[0];
                         const tie = results.length >= 2 && results[0].diff === results[1].diff;

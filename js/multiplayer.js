@@ -870,7 +870,7 @@ const MultiplayerGameWrapper = {
             clearInterval(game.timerInterval);
 
             const finalTime = game.elapsed;
-            const diff = Math.abs(finalTime - 10000);
+            const diff = Math.abs(finalTime - 150000);
 
             Multiplayer.sendAction('timer-stop', {
                 round: game.current,
@@ -901,8 +901,8 @@ const MultiplayerGameWrapper = {
                 <div class="timer-game">
                     <div class="timer-round-info">Manche ${game.current + 1} / ${game.total}</div>
                     <div class="timer-display-wrapper">
-                        <div class="timer-display" id="timer-display">00:00</div>
-                        <div class="timer-target">Objectif : <strong>10:00</strong></div>
+                        <div class="timer-display" id="timer-display">000:00</div>
+                        <div class="timer-target">Objectif : <strong>150:00</strong></div>
                     </div>
                     <button class="timer-stop-btn" id="timer-stop-btn">STOP</button>
                     <div class="timer-result-area" id="timer-result-area"></div>
