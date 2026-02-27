@@ -988,30 +988,280 @@ const MultiplayerGameWrapper = {
     },
 
     _wrapColorDraw(game) {
-        let strokeBuffer = [];
+        // ===== PICTIONARY WORD BANK =====
+        const PICTIONARY_WORDS = {
+            simple: [
+                { word: 'CHAT', emoji: '\u{1F431}' },
+                { word: 'SOLEIL', emoji: '\u{2600}\u{FE0F}' },
+                { word: 'MAISON', emoji: '\u{1F3E0}' },
+                { word: 'ARBRE', emoji: '\u{1F333}' },
+                { word: 'FLEUR', emoji: '\u{1F338}' },
+                { word: 'POISSON', emoji: '\u{1F41F}' },
+                { word: 'BATEAU', emoji: '\u{26F5}' },
+                { word: '\u{00C9}TOILE', emoji: '\u{2B50}' },
+                { word: 'LUNE', emoji: '\u{1F319}' },
+                { word: 'NUAGE', emoji: '\u{2601}\u{FE0F}' },
+                { word: 'OISEAU', emoji: '\u{1F426}' },
+                { word: 'POMME', emoji: '\u{1F34E}' },
+                { word: 'PAPILLON', emoji: '\u{1F98B}' },
+                { word: 'COEUR', emoji: '\u{2764}\u{FE0F}' },
+                { word: 'BONBON', emoji: '\u{1F36C}' },
+                { word: 'BALLON', emoji: '\u{1F388}' },
+                { word: 'G\u{00C2}TEAU', emoji: '\u{1F382}' },
+                { word: 'LAPIN', emoji: '\u{1F430}' },
+                { word: 'VOITURE', emoji: '\u{1F697}' },
+                { word: 'CHIEN', emoji: '\u{1F436}' },
+                { word: 'ESCARGOT', emoji: '\u{1F40C}' },
+                { word: 'PLUIE', emoji: '\u{1F327}\u{FE0F}' },
+                { word: 'BANANE', emoji: '\u{1F34C}' },
+                { word: 'BOUGIE', emoji: '\u{1F56F}\u{FE0F}' },
+                { word: 'NEIGE', emoji: '\u{2744}\u{FE0F}' }
+            ],
+            medium: [
+                { word: 'GUITARE', emoji: '\u{1F3B8}' },
+                { word: 'MONTAGNE', emoji: '\u{26F0}\u{FE0F}' },
+                { word: 'PARAPLUIE', emoji: '\u{2602}\u{FE0F}' },
+                { word: 'ROBOT', emoji: '\u{1F916}' },
+                { word: 'FUS\u{00C9}E', emoji: '\u{1F680}' },
+                { word: 'TORTUE', emoji: '\u{1F422}' },
+                { word: 'CH\u{00C2}TEAU', emoji: '\u{1F3F0}' },
+                { word: 'V\u{00C9}LO', emoji: '\u{1F6B2}' },
+                { word: 'DRAGON', emoji: '\u{1F409}' },
+                { word: 'CACTUS', emoji: '\u{1F335}' },
+                { word: 'AVION', emoji: '\u{2708}\u{FE0F}' },
+                { word: 'TRAIN', emoji: '\u{1F682}' },
+                { word: 'PIZZA', emoji: '\u{1F355}' },
+                { word: 'PIRATE', emoji: '\u{1F3F4}\u{200D}\u{2620}\u{FE0F}' },
+                { word: 'GIRAFE', emoji: '\u{1F992}' },
+                { word: 'SERPENT', emoji: '\u{1F40D}' },
+                { word: 'TAMBOUR', emoji: '\u{1F941}' },
+                { word: 'ARAIGN\u{00C9}E', emoji: '\u{1F577}\u{FE0F}' },
+                { word: '\u{00CE}LE', emoji: '\u{1F3DD}\u{FE0F}' },
+                { word: 'CERF-VOLANT', emoji: '\u{1FA81}' },
+                { word: 'REQUIN', emoji: '\u{1F988}' },
+                { word: 'HIBOU', emoji: '\u{1F989}' },
+                { word: 'PHARE', emoji: '\u{1F6E4}\u{FE0F}' },
+                { word: 'IGLOO', emoji: '\u{1F3D8}\u{FE0F}' },
+                { word: 'VOLCAN', emoji: '\u{1F30B}' }
+            ],
+            hard: [
+                { word: 'ASTRONAUTE', emoji: '\u{1F468}\u{200D}\u{1F680}' },
+                { word: 'TRAMPOLINE', emoji: '\u{1F938}' },
+                { word: 'BIBLIOTH\u{00C8}QUE', emoji: '\u{1F4DA}' },
+                { word: 'H\u{00C9}LICOPT\u{00C8}RE', emoji: '\u{1F681}' },
+                { word: 'SORCI\u{00C8}RE', emoji: '\u{1F9D9}\u{200D}\u{2640}\u{FE0F}' },
+                { word: 'DINOSAURE', emoji: '\u{1F995}' },
+                { word: 'FONTAINE', emoji: '\u{26F2}' },
+                { word: 'PYRAMIDE', emoji: '\u{1F53A}' },
+                { word: 'PARACHUTE', emoji: '\u{1FA82}' },
+                { word: 'ESCALIER', emoji: '\u{1FA9C}' },
+                { word: 'AQUARIUM', emoji: '\u{1F420}' },
+                { word: 'COURONNE', emoji: '\u{1F451}' },
+                { word: 'FANT\u{00D4}ME', emoji: '\u{1F47B}' },
+                { word: 'MOULIN', emoji: '\u{1F3D7}\u{FE0F}' },
+                { word: 'TR\u{00C9}SOR', emoji: '\u{1F48E}' },
+                { word: 'ORCHESTRE', emoji: '\u{1F3BB}' },
+                { word: 'T\u{00C9}LESCOPE', emoji: '\u{1F52D}' },
+                { word: 'CATH\u{00C9}DRALE', emoji: '\u{26EA}' },
+                { word: 'CALENDRIER', emoji: '\u{1F4C5}' },
+                { word: 'CHEMIN\u{00C9}E', emoji: '\u{1F525}' },
+                { word: 'BALAN\u{00C7}OIRE', emoji: '\u{1F3A0}' },
+                { word: 'BOUSSOLE', emoji: '\u{1F9ED}' },
+                { word: 'CHENILLE', emoji: '\u{1F41B}' },
+                { word: '\u{00C9}POUVANTAIL', emoji: '\u{1F33E}' },
+                { word: 'LABORATOIRE', emoji: '\u{1F52C}' }
+            ]
+        };
+
+        // ===== GAME STATE =====
+        const rng = game._rng;
+        const playerOrder = App._mpPlayerOrder || Multiplayer.players.map(p => ({
+            id: p.id, name: p.name, avatar: p.avatar
+        }));
+        const numPlayers = playerOrder.length;
+        const roundsPerPlayer = numPlayers <= 2 ? 2 : 1;
+        const totalRounds = numPlayers * roundsPerPlayer;
+        const ROUND_DURATION = 60;
+
+        // Select words using seeded RNG
+        const wordBank = game.age <= 6 ? PICTIONARY_WORDS.simple
+                       : game.age <= 8 ? PICTIONARY_WORDS.medium
+                       : PICTIONARY_WORDS.hard;
+        const shuffledWords = rng.shuffle(wordBank);
+
+        // Pre-compute all rounds
+        const rounds = [];
+        for (let i = 0; i < totalRounds; i++) {
+            const drawerIdx = i % numPlayers;
+            const drawer = playerOrder[drawerIdx];
+            const secretWord = shuffledWords[i % shuffledWords.length];
+            const decoyPool = wordBank.filter(w => w.word !== secretWord.word);
+            const shuffledDecoys = rng.shuffle(decoyPool);
+            const decoys = shuffledDecoys.slice(0, 4);
+            const choices = rng.shuffle([secretWord, ...decoys]);
+            rounds.push({ drawer, secretWord, choices });
+        }
+
+        // Mutable state
+        let currentRound = 0;
+        let roundTimer = null;
+        let roundTimeLeft = ROUND_DURATION;
+        let roundLocked = false;
         let sendTimer = null;
+        let currentStroke = null;
 
-        const origBindDraw = game.bindDrawEvents.bind(game);
-        game.bindDrawEvents = function() {
-            origBindDraw();
+        function isDrawer() {
+            return rounds[currentRound] && rounds[currentRound].drawer.id === Multiplayer.playerId;
+        }
 
+        function clearRoundTimer() {
+            if (roundTimer) { clearInterval(roundTimer); roundTimer = null; }
+        }
+
+        function startRoundTimer() {
+            roundTimeLeft = ROUND_DURATION;
+            const timerEl = game.container.querySelector('.pictionary-timer-value');
+            if (timerEl) timerEl.textContent = roundTimeLeft;
+
+            roundTimer = setInterval(() => {
+                roundTimeLeft--;
+                const el = game.container.querySelector('.pictionary-timer-value');
+                if (el) el.textContent = roundTimeLeft;
+                if (roundTimeLeft <= 10) {
+                    const tw = game.container.querySelector('.pictionary-timer');
+                    if (tw) tw.classList.add('pictionary-timer-urgent');
+                }
+                if (roundTimeLeft <= 0) {
+                    clearRoundTimer();
+                    if (isDrawer() && !roundLocked) {
+                        Multiplayer.sendAction('pictionary-timeout', {
+                            roundIndex: currentRound,
+                            correctAnswer: rounds[currentRound].secretWord.word
+                        });
+                    }
+                }
+            }, 1000);
+        }
+
+        // ===== DRAWER UI =====
+        function renderDrawerUI(round) {
+            const colors = [
+                '#FF6B6B', '#FF8A5C', '#FFE66D', '#51CF66', '#4ECDC4',
+                '#339AF0', '#6C63FF', '#9775FA', '#FF6B9D', '#2d3436',
+                '#FFFFFF', '#8B4513'
+            ];
+            game.container.innerHTML = `
+                <div class="pictionary-container">
+                    <div class="pictionary-header">
+                        <div class="pictionary-round-info">Manche ${currentRound + 1} / ${totalRounds}</div>
+                        <div class="pictionary-timer">
+                            <span class="pictionary-timer-icon">\u{23F1}</span>
+                            <span class="pictionary-timer-value">${ROUND_DURATION}</span>s
+                        </div>
+                    </div>
+                    <div class="pictionary-secret-word">
+                        <span class="pictionary-label">Dessine :</span>
+                        <span class="pictionary-word">${round.secretWord.emoji} ${round.secretWord.word}</span>
+                    </div>
+                    <div class="draw-toolbar">
+                        <div class="color-palette">
+                            ${colors.map(c =>
+                                `<div class="color-swatch ${c === game.color ? 'active' : ''}"
+                                     data-color="${c}"
+                                     style="background:${c};${c === '#FFFFFF' ? 'border:2px solid #ccc;' : ''}"></div>`
+                            ).join('')}
+                        </div>
+                        <div class="tool-divider"></div>
+                        <div class="brush-sizes">
+                            <div class="brush-size-btn size-sm" data-size="3"></div>
+                            <div class="brush-size-btn size-md active" data-size="8"></div>
+                            <div class="brush-size-btn size-lg" data-size="15"></div>
+                        </div>
+                        <div class="tool-divider"></div>
+                        <button class="tool-btn" id="eraser-btn">Gomme</button>
+                        <button class="tool-btn" id="undo-btn">Annuler</button>
+                        <button class="tool-btn" id="clear-btn">Tout effacer</button>
+                    </div>
+                    <div class="canvas-wrapper">
+                        <canvas id="draw-canvas" width="700" height="450"></canvas>
+                    </div>
+                    <div class="encouragement">Les autres joueurs essaient de deviner ton dessin !</div>
+                </div>
+            `;
+
+            game.canvas = document.getElementById('draw-canvas');
+            game.ctx = game.canvas.getContext('2d');
+            game.ctx.fillStyle = '#FFFFFF';
+            game.ctx.fillRect(0, 0, game.canvas.width, game.canvas.height);
+            game.history = [];
+            game.saveState();
+            game.isEraser = false;
+            game.color = '#FF6B6B';
+            game.brushSize = 8;
+
+            game.bindDrawEvents();
+            bindStrokeSending();
+        }
+
+        // ===== GUESSER UI =====
+        function renderGuesserUI(round) {
+            const drawerAvatar = App.getAvatarSrc(round.drawer.avatar);
+            game.container.innerHTML = `
+                <div class="pictionary-container">
+                    <div class="pictionary-header">
+                        <div class="pictionary-round-info">Manche ${currentRound + 1} / ${totalRounds}</div>
+                        <div class="pictionary-timer">
+                            <span class="pictionary-timer-icon">\u{23F1}</span>
+                            <span class="pictionary-timer-value">${ROUND_DURATION}</span>s
+                        </div>
+                    </div>
+                    <div class="pictionary-drawer-info">
+                        <img src="${drawerAvatar}" class="pictionary-drawer-avatar" alt="${round.drawer.name}">
+                        <span>${round.drawer.name} dessine...</span>
+                    </div>
+                    <div class="canvas-wrapper">
+                        <canvas id="draw-canvas" width="700" height="450"></canvas>
+                    </div>
+                    <div class="pictionary-choices">
+                        ${round.choices.map((c, idx) =>
+                            `<button class="pictionary-choice-btn" data-word="${c.word}" data-index="${idx}">
+                                ${c.emoji} ${c.word}
+                            </button>`
+                        ).join('')}
+                    </div>
+                </div>
+            `;
+
+            game.canvas = document.getElementById('draw-canvas');
+            game.ctx = game.canvas.getContext('2d');
+            game.ctx.fillStyle = '#FFFFFF';
+            game.ctx.fillRect(0, 0, game.canvas.width, game.canvas.height);
+
+            // Remove crosshair cursor for guessers (read-only canvas)
             const wrapper = game.container.querySelector('.canvas-wrapper');
-            if (wrapper) {
-                const partnerCanvas = document.createElement('canvas');
-                partnerCanvas.id = 'partner-draw-canvas';
-                partnerCanvas.width = 700;
-                partnerCanvas.height = 450;
-                partnerCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;';
-                wrapper.style.position = 'relative';
-                wrapper.appendChild(partnerCanvas);
-                game._partnerCtx = partnerCanvas.getContext('2d');
-            }
+            if (wrapper) wrapper.style.cursor = 'default';
 
+            game.container.querySelectorAll('.pictionary-choice-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (roundLocked) return;
+                    roundLocked = true;
+                    const selected = btn.dataset.word;
+                    const isCorrect = selected === round.secretWord.word;
+                    Sound.play('click');
+                    Multiplayer.sendAction('pictionary-guess', {
+                        roundIndex: currentRound,
+                        selected,
+                        isCorrect,
+                        correctAnswer: round.secretWord.word,
+                        drawerId: round.drawer.id
+                    });
+                });
+            });
+        }
+
+        // ===== STROKE SENDING (drawer only) =====
+        function bindStrokeSending() {
             const canvas = game.canvas;
-
-            const origStartDraw = canvas.onmousedown;
-            let currentStroke = null;
-
             const trackStroke = (e) => {
                 if (!game.isDrawing) return;
                 const r = canvas.getBoundingClientRect();
@@ -1025,10 +1275,8 @@ const MultiplayerGameWrapper = {
                     x = (e.clientX - r.left) * scaleX;
                     y = (e.clientY - r.top) * scaleY;
                 }
-
                 if (currentStroke) {
                     currentStroke.points.push({ x, y });
-
                     if (!sendTimer) {
                         sendTimer = setTimeout(() => {
                             if (currentStroke && currentStroke.points.length > 0) {
@@ -1045,55 +1293,35 @@ const MultiplayerGameWrapper = {
                     }
                 }
             };
-
-            canvas.addEventListener('mousedown', () => {
-                currentStroke = { points: [] };
-            });
+            const startStroke = () => { currentStroke = { points: [] }; };
+            const endStroke = () => {
+                if (currentStroke && currentStroke.points.length > 0) {
+                    Multiplayer.sendAction('draw-stroke', {
+                        stroke: {
+                            color: game.isEraser ? 'eraser' : game.color,
+                            size: game.brushSize,
+                            points: currentStroke.points
+                        }
+                    });
+                }
+                currentStroke = null;
+            };
+            canvas.addEventListener('mousedown', startStroke);
             canvas.addEventListener('mousemove', trackStroke);
-            canvas.addEventListener('mouseup', () => {
-                if (currentStroke && currentStroke.points.length > 0) {
-                    Multiplayer.sendAction('draw-stroke', {
-                        stroke: {
-                            color: game.isEraser ? 'eraser' : game.color,
-                            size: game.brushSize,
-                            points: currentStroke.points
-                        }
-                    });
-                }
-                currentStroke = null;
-            });
-
-            canvas.addEventListener('touchstart', () => {
-                currentStroke = { points: [] };
-            }, { passive: true });
+            canvas.addEventListener('mouseup', endStroke);
+            canvas.addEventListener('touchstart', startStroke, { passive: true });
             canvas.addEventListener('touchmove', trackStroke, { passive: true });
-            canvas.addEventListener('touchend', () => {
-                if (currentStroke && currentStroke.points.length > 0) {
-                    Multiplayer.sendAction('draw-stroke', {
-                        stroke: {
-                            color: game.isEraser ? 'eraser' : game.color,
-                            size: game.brushSize,
-                            points: currentStroke.points
-                        }
-                    });
-                }
-                currentStroke = null;
-            });
-        };
+            canvas.addEventListener('touchend', endStroke);
+        }
 
-        Multiplayer.onGameUpdate = function(msg) {
-            if (msg.actionType !== 'draw-stroke') return;
-            if (!game._partnerCtx) return;
-
-            const ctx = game._partnerCtx;
-            const stroke = msg.stroke;
-
+        // ===== STROKE RECEIVING (guesser canvas) =====
+        function applyStroke(stroke) {
+            if (!game.ctx) return;
+            const ctx = game.ctx;
             if (stroke.points.length < 2) return;
-
             ctx.lineWidth = stroke.size;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
-
             if (stroke.color === 'eraser') {
                 ctx.globalCompositeOperation = 'destination-out';
                 ctx.strokeStyle = 'rgba(0,0,0,1)';
@@ -1101,7 +1329,6 @@ const MultiplayerGameWrapper = {
                 ctx.globalCompositeOperation = 'source-over';
                 ctx.strokeStyle = stroke.color;
             }
-
             ctx.beginPath();
             ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
             for (let i = 1; i < stroke.points.length; i++) {
@@ -1109,6 +1336,123 @@ const MultiplayerGameWrapper = {
             }
             ctx.stroke();
             ctx.globalCompositeOperation = 'source-over';
+        }
+
+        // ===== START ROUND =====
+        function startRound() {
+            if (currentRound >= totalRounds) {
+                endPictionary();
+                return;
+            }
+            roundLocked = false;
+            const round = rounds[currentRound];
+            App.updateGameProgress(currentRound + 1, totalRounds);
+
+            if (isDrawer()) {
+                renderDrawerUI(round);
+            } else {
+                renderGuesserUI(round);
+            }
+            startRoundTimer();
+        }
+
+        // ===== SHOW ROUND RESULT =====
+        function showRoundResult(isCorrect, guesserId, guesserName, correctWord) {
+            clearRoundTimer();
+            const round = rounds[currentRound];
+
+            // Highlight correct choice for guessers
+            const buttons = game.container.querySelectorAll('.pictionary-choice-btn');
+            buttons.forEach(btn => {
+                btn.classList.add('disabled');
+                if (btn.dataset.word === correctWord) {
+                    btn.classList.add('correct');
+                }
+            });
+
+            // Result banner
+            const banner = document.createElement('div');
+            banner.className = 'pictionary-result-banner';
+            if (isCorrect) {
+                if (guesserId === Multiplayer.playerId) {
+                    banner.innerHTML = '<span class="pictionary-result-correct">Bravo ! Tu as devin\u{00E9} !</span>';
+                } else if (isDrawer()) {
+                    banner.innerHTML = `<span class="pictionary-result-correct">${guesserName} a devin\u{00E9} ton dessin !</span>`;
+                } else {
+                    banner.innerHTML = `<span class="pictionary-result-other">${guesserName} a devin\u{00E9} en premier !</span>`;
+                }
+                Sound.play('correct');
+                App.showFeedback(true);
+            } else {
+                banner.innerHTML = `<span class="pictionary-result-timeout">Temps \u{00E9}coul\u{00E9} ! C'\u{00E9}tait : ${round.secretWord.emoji} ${correctWord}</span>`;
+                Sound.play('wrong');
+                App.showFeedback(false);
+            }
+
+            const container = game.container.querySelector('.pictionary-container');
+            if (container) container.appendChild(banner);
+
+            currentRound++;
+            setTimeout(() => startRound(), 2500);
+        }
+
+        // ===== END GAME =====
+        function endPictionary() {
+            clearRoundTimer();
+            game.score = 0;
+            const scores = App._mpScores;
+            if (scores && scores[Multiplayer.playerId] != null) {
+                game.score = scores[Multiplayer.playerId];
+            }
+            const maxPossible = totalRounds * 2;
+            const ratio = maxPossible > 0 ? game.score / maxPossible : 0;
+            const stars = ratio >= 0.6 ? 3 : ratio >= 0.35 ? 2 : ratio > 0 ? 1 : 0;
+            App.addStars('draw', stars);
+            App.showModal(
+                'Pictionary termin\u{00E9} !',
+                `Tu as marqu\u{00E9} ${game.score} point${game.score > 1 ? 's' : ''} !`,
+                '',
+                stars
+            );
+        }
+
+        // Cleanup timer on game exit
+        const origCleanup = game.cleanup ? game.cleanup.bind(game) : () => {};
+        game.cleanup = function() {
+            clearRoundTimer();
+            origCleanup();
         };
+
+        // ===== MULTIPLAYER MESSAGE HANDLER =====
+        Multiplayer.onGameUpdate = function(msg) {
+            if (msg.actionType === 'draw-stroke') {
+                if (msg.playerId === Multiplayer.playerId) return;
+                applyStroke(msg.stroke);
+                return;
+            }
+            if (msg.actionType === 'pictionary-guess') {
+                if (msg.roundIndex !== currentRound) return;
+                roundLocked = true;
+                if (msg.scores) {
+                    App._mpScores = msg.scores;
+                    App.updateMultiplayerScores(msg.scores);
+                }
+                showRoundResult(msg.isCorrect, msg.playerId, msg.playerName, msg.correctAnswer);
+                return;
+            }
+            if (msg.actionType === 'pictionary-timeout') {
+                if (msg.roundIndex !== currentRound) return;
+                roundLocked = true;
+                if (msg.scores) {
+                    App._mpScores = msg.scores;
+                    App.updateMultiplayerScores(msg.scores);
+                }
+                showRoundResult(false, null, null, msg.correctAnswer);
+                return;
+            }
+        };
+
+        // ===== KICK OFF FIRST ROUND =====
+        startRound();
     }
 };

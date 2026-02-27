@@ -4086,6 +4086,190 @@ body:has(.mp-score-header:not(.hidden)) #game-screen .game-header {
 }
 
 /* ============================================
+   Pictionary Mode
+   ============================================ */
+.pictionary-container {
+    width: 100%;
+    max-width: 700px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.pictionary-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: rgba(255,255,255,0.1);
+    border-radius: var(--radius-sm);
+}
+
+.pictionary-round-info {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.pictionary-timer {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--color-text);
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.15);
+    transition: background 0.3s, color 0.3s;
+}
+
+.pictionary-timer-urgent {
+    background: #FF6B6B;
+    color: white;
+    animation: pictionary-pulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes pictionary-pulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.08); }
+}
+
+.pictionary-secret-word {
+    width: 100%;
+    text-align: center;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #FFE66D, #FF8A5C);
+    border-radius: var(--radius-md);
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #2d3436;
+    box-shadow: var(--shadow-sm);
+}
+
+.pictionary-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-right: 8px;
+    opacity: 0.7;
+}
+
+.pictionary-word {
+    font-size: 1.5rem;
+    letter-spacing: 2px;
+}
+
+.pictionary-drawer-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--color-text);
+    padding: 8px 16px;
+    background: rgba(255,255,255,0.1);
+    border-radius: var(--radius-sm);
+}
+
+.pictionary-drawer-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255,255,255,0.3);
+}
+
+.pictionary-choices {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    padding: 10px 0;
+    width: 100%;
+}
+
+.pictionary-choice-btn {
+    padding: 12px 20px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    font-family: var(--font-body);
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: var(--radius-md);
+    background: rgba(255,255,255,0.1);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 120px;
+    text-align: center;
+}
+
+.pictionary-choice-btn:hover:not(.disabled) {
+    background: rgba(255,255,255,0.25);
+    border-color: rgba(255,255,255,0.4);
+    transform: translateY(-2px);
+}
+
+.pictionary-choice-btn.correct {
+    background: #51CF66 !important;
+    border-color: #40c057 !important;
+    color: white !important;
+}
+
+.pictionary-choice-btn.disabled {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.pictionary-result-banner {
+    width: 100%;
+    text-align: center;
+    padding: 16px;
+    border-radius: var(--radius-md);
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-top: 8px;
+    animation: pictionary-fade-in 0.3s ease;
+}
+
+@keyframes pictionary-fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.pictionary-result-correct {
+    color: #51CF66;
+}
+
+.pictionary-result-other {
+    color: #FFE66D;
+}
+
+.pictionary-result-timeout {
+    color: #FF6B6B;
+}
+
+@media (max-width: 600px) {
+    .pictionary-secret-word {
+        font-size: 1.1rem;
+        padding: 10px 14px;
+    }
+    .pictionary-word {
+        font-size: 1.2rem;
+    }
+    .pictionary-choices {
+        gap: 6px;
+    }
+    .pictionary-choice-btn {
+        padding: 10px 14px;
+        font-size: 0.95rem;
+        min-width: 100px;
+    }
+    .pictionary-timer {
+        font-size: 1rem;
+    }
+}
+
+/* ============================================
    NEW: Online Players Grid
    ============================================ */
 .online-players-section {

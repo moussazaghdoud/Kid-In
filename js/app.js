@@ -301,11 +301,12 @@ const App = {
             timer: 'Chrono D\u00E9fi'
         };
 
-        document.getElementById('game-title').textContent = titles[gameName] || 'Jeu';
+        const title = (gameName === 'draw' && this.isMultiplayer) ? 'Pictionary' : (titles[gameName] || 'Jeu');
+        document.getElementById('game-title').textContent = title;
 
         const gameProgressEl = document.querySelector('.game-progress');
 
-        if (gameName === 'draw' || gameName === 'timer') {
+        if (gameName === 'timer' || (gameName === 'draw' && !this.isMultiplayer)) {
             gameProgressEl.style.display = 'none';
             document.querySelector('.game-progress-bar').style.display = 'none';
         } else if (gameName === 'colorseq') {
@@ -816,6 +817,7 @@ const App = {
         Multiplayer.onGameStart = (msg) => {
             this.age = msg.age;
             document.getElementById('selected-age-display').textContent = this.age;
+            this._mpPlayerOrder = msg.players || null;
             this.startGameNow(msg.game, msg.seed);
         };
     },
@@ -1159,7 +1161,9 @@ const App = {
             // Delete button handler
             card.querySelector('.player-delete-btn').addEventListener('click', (e) => {
                 e.stopPropagation();
+                e.preventDefault();
                 if (confirm(`Supprimer le joueur "${profile.name}" ?`)) {
+                    card.remove();
                     this._deleteProfileFromServer(profile.name);
                 }
             });
@@ -2695,10 +2699,11 @@ class PatternDetective {
 
 // ==================== JEU : DESSINE & COLORIE ====================
 class ColorDraw {
-    constructor(age, container) {
+    constructor(age, container, rng) {
         this.name = 'draw';
         this.age = age;
         this.container = container;
+        this._rng = rng;
         this.color = '#FF6B6B';
         this.brushSize = 8;
         this.isDrawing = false;

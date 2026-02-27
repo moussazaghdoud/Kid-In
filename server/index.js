@@ -551,7 +551,8 @@ wss.on('connection', (ws) => {
                     game: msg.game,
                     age: msg.age,
                     seed,
-                    totalQuestions: room.gameState.totalQuestions
+                    totalQuestions: room.gameState.totalQuestions,
+                    players: room.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar }))
                 };
                 room.players.forEach(p => sendTo(p.ws, startMsg));
                 break;
@@ -698,6 +699,52 @@ wss.on('connection', (ws) => {
                         playerId: ws.playerId,
                         stroke: msg.stroke
                     }, ws);
+                    break;
+                }
+
+                // For Pictionary guesses (first-click-wins per round)
+                if (msg.actionType === 'pictionary-guess') {
+                    const actionKey2 = `pictionary-guess:${msg.roundIndex}`;
+                    if (room.lockedActions.has(actionKey2)) break;
+                    room.lockedActions.add(actionKey2);
+
+                    if (msg.isCorrect) {
+                        room.gameState.scores[ws.playerId] = (room.gameState.scores[ws.playerId] || 0) + 2;
+                        if (msg.drawerId) {
+                            room.gameState.scores[msg.drawerId] = (room.gameState.scores[msg.drawerId] || 0) + 1;
+                        }
+                    }
+
+                    const update = {
+                        type: 'game:update',
+                        actionType: 'pictionary-guess',
+                        playerId: ws.playerId,
+                        playerName: ws.playerName,
+                        playerAvatar: ws.playerAvatar,
+                        roundIndex: msg.roundIndex,
+                        selected: msg.selected,
+                        isCorrect: msg.isCorrect,
+                        correctAnswer: msg.correctAnswer,
+                        scores: room.gameState.scores
+                    };
+                    room.players.forEach(p => sendTo(p.ws, update));
+                    break;
+                }
+
+                // For Pictionary timer expiry
+                if (msg.actionType === 'pictionary-timeout') {
+                    const actionKey2 = `pictionary-guess:${msg.roundIndex}`;
+                    if (room.lockedActions.has(actionKey2)) break;
+                    room.lockedActions.add(actionKey2);
+
+                    const update = {
+                        type: 'game:update',
+                        actionType: 'pictionary-timeout',
+                        roundIndex: msg.roundIndex,
+                        correctAnswer: msg.correctAnswer,
+                        scores: room.gameState.scores
+                    };
+                    room.players.forEach(p => sendTo(p.ws, update));
                     break;
                 }
 
