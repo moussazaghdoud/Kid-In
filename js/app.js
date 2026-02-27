@@ -1104,6 +1104,23 @@ const App = {
         }).catch(e => console.warn('[Profile] Server save failed:', e.message));
     },
 
+    async _deleteProfileFromServer(name) {
+        try {
+            await fetch(`/api/profiles/${encodeURIComponent(name)}`, { method: 'DELETE' });
+            // If the deleted profile was the active one, clear it
+            if (this.playerName === name) {
+                this.playerName = '';
+                this.playerAvatar = '';
+                this._hasSavedProfile = false;
+                localStorage.removeItem('kidin-profile');
+            }
+            // Reload the cards
+            await this._loadServerProfiles();
+        } catch (e) {
+            console.warn('[Profile] Server delete failed:', e.message);
+        }
+    },
+
     async _loadServerProfiles() {
         try {
             const resp = await fetch('/api/profiles');
@@ -1132,11 +1149,20 @@ const App = {
             card.dataset.custom = 'true';
             card.dataset.name = profile.name;
             card.innerHTML = `
+                <button class="player-delete-btn" title="Supprimer">&times;</button>
                 <div class="player-photo-ring player-ring-new">
                     <img src="${profile.avatar}" alt="${profile.name}" class="player-photo">
                 </div>
                 <span class="player-name">${profile.name}</span>
             `;
+
+            // Delete button handler
+            card.querySelector('.player-delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm(`Supprimer le joueur "${profile.name}" ?`)) {
+                    this._deleteProfileFromServer(profile.name);
+                }
+            });
 
             // Pre-highlight if this is the currently saved profile
             if (this._hasSavedProfile && this.playerName === profile.name) {
